@@ -34,11 +34,24 @@ public class InventoryCommands
             var inv = c->GetInventoryContainer(x);
             for (var i = 0; i < inv->Size; i++)
             {
-                if (inv->Items[i].ItemID == 0)
+                if (inv->Items[i].ItemId == 0)
                 {
                     slots++;
                 }
             }
+        }
+        return slots;
+    }
+
+    public unsafe int GetFreeSlotsInContainer(uint container)
+    {
+        var inv = InventoryManager.Instance();
+        var cont = inv->GetInventoryContainer((InventoryType)container);
+        var slots = 0;
+        for (var i = 0; i < cont->Size; i++)
+        {
+            if (cont->Items[i].ItemId == 0)
+                slots++;
         }
         return slots;
     }

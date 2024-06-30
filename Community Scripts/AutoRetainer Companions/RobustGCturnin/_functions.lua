@@ -6,6 +6,33 @@ function ungabunga()
 	yield("/wait 3")
 end
 
+function generateRandomLetter(cappy)
+    local uppercase = math.random(65, 90) -- ASCII codes for uppercase letters
+    local lowercase = math.random(97, 122) -- ASCII codes for lowercase letters
+    local choice = math.random(0, 1) -- Randomly choose between uppercase and lowercase
+	if cappy == 2 then choice = 0 end
+	if cappy == 3 then choice = 1 end
+    if choice == 0 then
+        return string.char(lowercase)
+    else
+        return string.char(uppercase)
+    end
+end
+
+--0=no, 1=full randomize, 2=lowercase only, 3=uppercase only, 4=randomly full upper OR lowercase, 5=pick from emblem configuration list. remember this has to be the FC leader
+function generateFiveDigitText(frocess_tags)
+    local text = ""
+	capper = frocess_tags
+	if capper == 4 then
+		local choice = math.random(0, 1) -- Randomly choose between uppercase and lowercase
+		choice = choice + 2
+	end
+    for i = 1, 5 do
+        text = text .. generateRandomLetter(capper)
+    end
+    return text
+end
+
 function WalkTo(x, y, z)
     PathfindAndMoveTo(x, y, z, false)
 	countee = 0
@@ -17,6 +44,7 @@ function WalkTo(x, y, z)
 		--if GetZoneID() == 341 then --only need to jump in goblet for now
 			yield("/gaction jump")
 			countee = 0
+	        yield("/echo we are still pathfinding apparently")
 		end
     end
 end
@@ -98,10 +126,20 @@ function visland_stop_moving()
 	muuvY = GetPlayerRawYPos()
 	muuvZ = GetPlayerRawZPos()
  end
- yield("/echo movement stopped - time for GC turn ins or whatever")
+ --yield("/echo movement stopped - time for GC turn ins or whatever")
+ yield("/echo movement stopped safely - script proceeding to next bit")
  yield("/visland stop")
  yield("/vnavmesh stop")
  yield("/wait 3")
+end
+
+
+function return_to_limsa_bell()
+	yield("/tp Limsa Lominsa")
+	ZoneTransition()
+	yield("/wait 2")
+	PathfindAndMoveTo(-125.440284729, 18.0, 21.004405975342, false)
+	visland_stop_moving() --added so we don't accidentally end before we get to the inn person
 end
 
 function return_to_inn()

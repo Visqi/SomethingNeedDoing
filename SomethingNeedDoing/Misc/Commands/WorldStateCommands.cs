@@ -1,6 +1,11 @@
-﻿using ECommons.DalamudServices;
+﻿using Dalamud.Hooking;
+using Dalamud.Memory;
+using Dalamud.Utility;
+using Dalamud.Utility.Signatures;
+using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.Event;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Environment;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
@@ -35,6 +40,7 @@ public class WorldStateCommands
     public unsafe float GetFlagXCoord() => AgentMap.Instance()->FlagMapMarker.XFloat;
     public unsafe float GetFlagYCoord() => AgentMap.Instance()->FlagMapMarker.YFloat;
     public unsafe float GetFlagZone() => AgentMap.Instance()->FlagMapMarker.TerritoryId;
+    public unsafe void SetMapFlag(uint territory, float worldX, float worldY, float worldZ) => AgentMap.Instance()->SetFlagMapMarker(territory, Svc.Data.GetExcelSheet<TerritoryType>()!.GetRow(territory)!.Map.Value!.RowId, new Vector3(worldX, worldY, worldZ));
 
     public unsafe byte GetActiveWeatherID() => EnvManager.Instance()->ActiveWeather;
 
@@ -45,13 +51,13 @@ public class WorldStateCommands
 
     #region Fate
     public unsafe List<ushort> GetActiveFates() =>
-        FateManager.Instance()->Fates.Span.ToArray()
+        FateManager.Instance()->Fates.AsSpan().ToArray()
         .Where(f => f.Value is not null)
         .OrderBy(f => Vector3.Distance(Svc.ClientState.LocalPlayer!.Position, f.Value->Location))
         .Select(f => f.Value->FateId)
         .ToList();
 
-    public unsafe ushort GetNearestFate() => FateManager.Instance()->Fates.Span.ToArray()
+    public unsafe ushort GetNearestFate() => FateManager.Instance()->Fates.AsSpan().ToArray()
         .Where(f => f.Value is not null)
         .OrderBy(f => Vector3.Distance(Svc.ClientState.LocalPlayer!.Position, f.Value->Location))
         .Select(f => f.Value->FateId)
@@ -66,16 +72,21 @@ public class WorldStateCommands
     public unsafe float GetFateProgress(ushort fateID) => FateManager.Instance()->GetFateById(fateID)->Progress;
     #endregion
 
+    public float DistanceBetween(float x1, float y1, float z1, float x2, float y2, float z2) => Vector3.DistanceSquared(new Vector3(x1, y1, z1), new Vector3(x2, y2, z2));
+
     public unsafe float GetContentTimeLeft() => EventFramework.Instance()->GetInstanceContentDirector()->ContentDirector.ContentTimeLeft;
+
+    public unsafe int GetLastInstanceServerID() => WatchedValues.InstanceServerID;
+    public unsafe int GetLastInstanceZoneID() => WatchedValues.InstanceServerID;
 
     #region OceanFishing
     public unsafe uint GetCurrentOceanFishingRoute() => EventFramework.Instance()->GetInstanceContentOceanFishing()->CurrentRoute;
     public byte GetCurrentOceanFishingTimeOfDay() => Svc.Data.GetExcelSheet<IKDRoute>()?.GetRow(this.GetCurrentOceanFishingRoute())?.Time[this.GetCurrentOceanFishingZone()].Value?.Unknown0 ?? 0;
     public unsafe int GetCurrentOceanFishingStatus() => (int)EventFramework.Instance()->GetInstanceContentOceanFishing()->Status;
-    public unsafe byte GetCurrentOceanFishingZone() => EventFramework.Instance()->GetInstanceContentOceanFishing()->CurrentZone;
+    public unsafe uint GetCurrentOceanFishingZone() => EventFramework.Instance()->GetInstanceContentOceanFishing()->CurrentZone;
     public float GetCurrentOceanFishingZoneTimeLeft() => this.GetContentTimeLeft() - this.GetCurrentOceanFishingTimeOffset();
     public unsafe uint GetCurrentOceanFishingTimeOffset() => EventFramework.Instance()->GetInstanceContentOceanFishing()->TimeOffset;
-    public unsafe uint GetCurrentOceanFishingWeatherID() => EventFramework.Instance()->GetInstanceContentOceanFishing()->WeatherID;
+    public unsafe uint GetCurrentOceanFishingWeatherID() => EventFramework.Instance()->GetInstanceContentOceanFishing()->WeatherId;
     public unsafe bool OceanFishingIsSpectralActive() => EventFramework.Instance()->GetInstanceContentOceanFishing()->SpectralCurrentActive;
     public unsafe uint GetCurrentOceanFishingMission1Type() => EventFramework.Instance()->GetInstanceContentOceanFishing()->Mission1Type;
     public unsafe uint GetCurrentOceanFishingMission2Type() => EventFramework.Instance()->GetInstanceContentOceanFishing()->Mission2Type;
@@ -113,5 +124,5 @@ public class WorldStateCommands
             .Select(o => o.Name.TextValue)
             .ToList();
 
-    private float DistanceToObject(Dalamud.Game.ClientState.Objects.Types.GameObject o) => Vector3.DistanceSquared(o.Position, Svc.ClientState.LocalPlayer!.Position);
+    private float DistanceToObject(Dalamud.Game.ClientState.Objects.Types.IGameObject o) => Vector3.DistanceSquared(o.Position, Svc.ClientState.LocalPlayer!.Position);
 }

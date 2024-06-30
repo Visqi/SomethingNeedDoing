@@ -1,6 +1,8 @@
-﻿using ECommons;
+﻿using Dalamud.Memory;
+using ECommons;
 using ECommons.Automation;
 using ECommons.DalamudServices;
+using ECommons.UIHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
@@ -108,7 +110,7 @@ public class AddonCommands
 
         var addon = (AtkUnitBase*)ptr;
         var node = GetNodeByIDChain(addon->GetRootNode(), ids);
-        return node != null && node->IsVisible;
+        return node != null && node->IsVisible();
     }
 
     private unsafe AtkResNode* GetNodeByIDChain(AtkResNode* node, params int[] ids)
@@ -116,7 +118,7 @@ public class AddonCommands
         if (node == null || ids.Length <= 0)
             return null;
 
-        if (node->NodeID == ids[0])
+        if (node->NodeId == ids[0])
         {
             if (ids.Length == 1)
                 return node;
@@ -238,7 +240,7 @@ public class AddonCommands
             return ((AtkCounterNode*)node)->NodeText.ToString();
 
         var textNode = (AtkTextNode*)node;
-        return textNode->NodeText.ToString();
+        return textNode->NodeText.ExtractText();
     }
 
     public unsafe void SetNodeText(string addonName, string text, params int[] ids)

@@ -1,5 +1,5 @@
  --[[
-  Description: party farm trial
+  Description: nothing to see here . garbage script
   Author: McVaxius
 ]]
 
@@ -118,8 +118,6 @@ local dist_between_points = 500
 local neverstop = true
 local i = 0
 
-local we_are_spreading = 0 --by default we aren't spreading
-
 --duty specific vars
 local dutycheck = 0
 local dutycheckupdate = 1
@@ -138,6 +136,13 @@ local WPsearchY = 1
 local WPsearchZ = 1
 local cycleTime = 1 --how many seconds to wait between cycles. might move this to the .ini file later
 local deathCounter = 0
+
+if lootchests == 0 then
+	yield("/fulf pass")
+end
+if lootchests > 0 then
+	yield("/fulf need")
+end
 
 local function distance(x1, y1, z1, x2, y2, z2)
     -- Following block to error trap some issues when changing areas
@@ -207,20 +212,26 @@ local function getRandomNumber(min, max)
 end
 
 function targetchests()
-	chesttargeted = false
-	if GetTargetName() == "Treasure Coffer" then chesttargeted = true end
-	if string.len(GetTargetName()) == 0 or GetTargetName() == "Exit" or GetTargetName() == "Shortcut" or chesttargeted == true then
-		yield("/target Chest")
-		yield("/target \"Treasure Coffer\"")
-		yield("/wait 0.5")	
-		if chesttargeted == true then
-			yield("/vnavmesh moveto "..GetTargetRawXPos().." "..GetTargetRawYPos().." "..GetTargetRawZPos())
-			--yield("/autofollow")
-			yield("/echo Chest ! -> "..GetTargetName())
---			yield("/lockon")
---			yield("/automove")
-			yield("/rotation Cancel")
+	if lootchests > 0 then
+		PandoraSetFeatureConfigState("Auto-interact with Objects in Instances", "ExcludeExit", true) 
+		chesttargeted = false
+		if GetTargetName() == "Treasure Coffer" then chesttargeted = true end
+		if string.len(GetTargetName()) == 0 or GetTargetName() == "Exit" or GetTargetName() == "Shortcut" or chesttargeted == true then
+			yield("/target Chest")
+			yield("/target \"Treasure Coffer\"")
+			yield("/wait 0.5")	
+			if chesttargeted == true then
+				yield("/vnavmesh moveto "..GetTargetRawXPos().." "..GetTargetRawYPos().." "..GetTargetRawZPos())
+				--yield("/autofollow")
+				yield("/echo Chest ! -> "..GetTargetName())
+	--			yield("/lockon")
+	--			yield("/automove")
+				yield("/rotation Cancel")
+			end
 		end
+	end
+	if lootchests == 0 then 
+		PandoraSetFeatureConfigState("Auto-interact with Objects in Instances", "ExcludeExit", false) 
 	end
 end
 
@@ -279,57 +290,6 @@ local function limitbreak()
 			--yield("/echo limitpct "..limitpct.." HPP"..GetTargetHPP().." HP"..GetTargetHP().." get limoot"..GetLimitBreakBarCount() * GetLimitBreakBarValue()) --debug line
 		end
 	end
-end
-
-local function do_we_spread()
-    did_we_find_one = 0
-	--need to start getting the names of the ones that vbm doesn't resolve and add them here
-	--now we iterate through the list of possible entities
-    for _, entity_name in ipairs(spread_marker_entities) do
-         if GetDistanceToObject(entity_name) < 40 then
-             did_we_find_one = 1
-             break --escape from loop we found one!!!
-         end
-    end
-	if did_we_find_one == 1 then
-		--return true
-		we_are_spreading = 1 --indicate to the follow functions that we are spreading and not to try and do stuff
-		spread_em(5) --default 5 "distance" movement for now IMPROVE LATER with multi variable array with distances for each spread marker? and maybe some actual math because 1,1 is actually 1.4 distance from origin.
-		did_we_find_one = 0
-	end
-	if did_we_find_one == 0 then
-		--return false
-		--do nothing ;o
-		we_are_spreading = 0 -- we aren't spreading
-	end
-end
-
-local function spread_em(distance)
-    local deltaX, deltaY
-	deltaX = mecurrentLocX
-	deltaY = mecurrentLocY
-    if partymemberENUM == 1 then
-        deltaX, deltaY = 0, -distance  -- Move up
-    elseif partymemberENUM == 2 then
-        deltaX, deltaY = distance, 0  -- Move right
-    elseif partymemberENUM == 3 then
-        deltaX, deltaY = 0, distance  -- Move down
-    elseif partymemberENUM == 4 then
-        deltaX, deltaY = -distance, 0  -- Move left
-    elseif partymemberENUM == 5 then
-        deltaX, deltaY = distance, -distance  -- Move up right
-    elseif partymemberENUM == 6 then
-        deltaX, deltaY = distance, distance  -- Move down right
-    elseif partymemberENUM == 7 then
-        deltaX, deltaY = -distance, distance  -- Move down left
-    elseif partymemberENUM == 8 then
-        deltaX, deltaY = -distance, -distance  -- Move up left
-    else
-        yield("/echo Invalid direction - check partymemberENUM in your .ini file")
-    end
-    --time to do the movement!
-	yield("/"..movetype.." moveto "..deltaX.." "..deltaY.." "..mecurrentLocZ)
-	yield("/wait 5")
 end
 
 local function setdeest()
@@ -396,11 +356,16 @@ local function porta_decumana()
 		if type(GetZoneID()) == "number" and GetZoneID() == 1048 then
 			customized_targeting = 1
 			yield("/target Ultima")
+			if distance(GetPlayerRawXPos(),GetPlayerRawYPos(),GetPlayerRawZPos(),GetTargetRawXPos(),GetTargetRawYPos(),GetTargetRawZPos()) > 2 then
+					yield("/vnavmesh moveto "..GetTargetRawXPos().." "..GetTargetRawYPos().." "..GetTargetRawZPos()) --move to the target
+			end
 			--check the area number before doing ANYTHING this breaks other areas.
 			--porta decumana ultima weapon orbs in phase 2 near start of phase
 			--very hacky kludge until movement isn't slidy
 			--nested ifs because we don't want to get locked into this
-			mecurrentLocX = GetPlayerRawXPos()
+--[[
+--COMMENTED OUT THIS ENTIRE SECTION SINCE WE HAVE PROPER VBM MODULE NOW		
+		mecurrentLocX = GetPlayerRawXPos()
 			mecurrentLocY = GetPlayerRawYPos()
 			mecurrentLocZ = GetPlayerRawZPos()
 			phase2 = distance(-692.46704, -185.53157, 468.43414, mecurrentLocX, mecurrentLocY, mecurrentLocZ)
@@ -471,6 +436,7 @@ local function porta_decumana()
 					end
 				end	
 			]]
+			-- ]] fake comment ending
 	end
 end
 
@@ -889,6 +855,7 @@ yield("/vbm cfg AI Enabled true")
 yield("/echo Turning AI Self Follow On")
 yield("/wait 0.5")
 yield("/vbmai on")
+yield("/bmrai on")
 
 while repeated_trial < (repeat_trial + 1) do
 	--yield("/echo get limoooot"..GetLimitBreakCurrentValue().."get limootmax"..GetLimitBreakBarCount() * GetLimitBreakBarValue()) --debug for hpp. its bugged atm 2024 02 12 and seems to return 0
@@ -900,6 +867,12 @@ while repeated_trial < (repeat_trial + 1) do
 		if type(GetTargetHPP()) == "number" and GetTargetHPP() > 95 then
 			yield("/ac provoke")
 		end
+		--try to use a tank gap closer
+			yield("/ac Intervene")
+			yield("/ac Onslaught")
+			yield("/ac Plunge")
+			yield("/ac Primal Rend")
+			yield("/ac Rough Divide")
 	end
 
 	--[[
@@ -940,7 +913,10 @@ while repeated_trial < (repeat_trial + 1) do
 		yield("/vnavmesh stop")
 		yield("/wait 2")
 		yield("/echo We seem to be outside of the duty.. let us enter!")
-		yield("/wait 15")	
+		--reset this so we can sneak in a config change before ending script
+		PandoraSetFeatureConfigState("Auto-interact with Objects in Instances", "ExcludeExit", false) 
+		--yield("/wait 15")	
+		yield("/wait 5")
 		if repeat_type == 0 then --4 Real players (or scripts haha) using duty finder
 			yield("/finder")
 			yield("/echo attempting to trigger duty finder")
@@ -993,31 +969,34 @@ while repeated_trial < (repeat_trial + 1) do
 		if GetTargetName()=="Exit" or GetTargetName()=="Shortcut" then --get out ! assuming pandora setup for auto interaction
 			local minicounter = 0
 			--repair snippet stolen from https://github.com/Jaksuhn/SomethingNeedDoing/blob/master/Community%20Scripts/Gathering/DiademReentry_Caeoltoiri.lua
-			if NeedsRepair(99) then
-				yield("/wait 10")
-				while not IsAddonVisible("Repair") do
-				  yield("/generalaction repair")
-				  yield("/wait 1")
-				  minicounter = minicounter + 1
-				  if minicounter > 20 then
-					minicounter = 0
-					break
-				  end
-				end
-				yield("/pcall Repair true 0")
-				yield("/wait 0.1")
-				if IsAddonVisible("SelectYesno") then
-				  yield("/pcall SelectYesno true 0")
-				  yield("/wait 1")
-				end
-				while GetCharacterCondition(39) do yield("/wait 1")
-				yield("/wait 1")
-				yield("/pcall Repair true -1")
-				  minicounter = minicounter + 1
-				  if minicounter > 20 then
-					minicounter = 0
-					break
-				  end
+			--check if we even have g8dm, otherwise dont waste time
+			if GetItemCount(33916) > 0 then
+				if NeedsRepair(99) then
+					yield("/wait 10")
+					while not IsAddonVisible("Repair") do
+					  yield("/generalaction repair")
+					  yield("/wait 1")
+					  minicounter = minicounter + 1
+					  if minicounter > 20 then
+						minicounter = 0
+						break
+					  end
+					end
+					yield("/pcall Repair true 0")
+					yield("/wait 0.1")
+					if IsAddonVisible("SelectYesno") then
+					  yield("/pcall SelectYesno true 0")
+					  yield("/wait 1")
+					end
+					while GetCharacterCondition(39) do yield("/wait 1")
+					yield("/wait 1")
+					yield("/pcall Repair true -1")
+					  minicounter = minicounter + 1
+					  if minicounter > 20 then
+						minicounter = 0
+						break
+					  end
+					end
 				end
 			end
 			if whereismydoodie > #doodie then
@@ -1044,7 +1023,12 @@ while repeated_trial < (repeat_trial + 1) do
 					--yield("/automove on")
 					--replaced above with navmesh to exit
 					yield("/vnavmesh moveto "..GetObjectRawXPos("Exit").." "..GetObjectRawYPos("Exit").." "..GetObjectRawZPos("Exit"))
-					yield("/wait 10")
+					booxit = 0
+					while booxit < 10 do
+						yield("/wait 1")
+						yield("/interact")
+						booxit = booxit + 1
+					end
 				end
 			end
 		end
@@ -1055,7 +1039,7 @@ while repeated_trial < (repeat_trial + 1) do
 		arbitrary_duty() --this is the big boy
 		
 		--regular movement to target
-		if customized_behaviour == 0 and char_snake ~= "no follow" and char_snake ~= "party leader" and enemy_snake == "nothing" and we_are_spreading == 0 then --close gaps to party leader only if we are on follow mode
+		if customized_behaviour == 0 and char_snake ~= "no follow" and char_snake ~= "party leader" and enemy_snake == "nothing" then --close gaps to party leader only if we are on follow mode
 			setdeest()
 			if dist_between_points > snake_deest and dist_between_points < meh_deest then
 					--yield("/visland moveto "..currentLocX.." "..currentLocY.." "..currentLocZ) --sneak around when navmesh being weird
@@ -1065,7 +1049,7 @@ while repeated_trial < (repeat_trial + 1) do
 					--yield("/echo player follow distance between points: "..dist_between_points.." enemy deest"..enemy_deest.." char deest :"..snake_deest)
 			end
 		end
-		if customized_behaviour == 0 and enemy_snake ~= "nothing" and dutycheck == 0 and we_are_spreading == 0 then --close gaps to enemy only if we are on follow mode
+		if customized_behaviour == 0 and enemy_snake ~= "nothing" and dutycheck == 0 then --close gaps to enemy only if we are on follow mode
 			setdeest()
 			if dist_between_points > enemy_deest and dist_between_points < enemeh_deest then
 					--yield("/visland moveto "..currentLocX.." "..currentLocY.." "..currentLocZ)
@@ -1099,6 +1083,7 @@ while repeated_trial < (repeat_trial + 1) do
 		yield("/wait 10")
 	end
 	if we_are_in ~= we_were_in then
+		yield("/rotation auto") --we need to turn this on here so rotations work
 		yield("/"..movetype.." stop")
 		yield("/wait 1")
 		yield("/"..movetype.." stop")
@@ -1107,6 +1092,7 @@ while repeated_trial < (repeat_trial + 1) do
 		if GetCharacterCondition(34) == true then --only trigger rebuild in a duty and when following a party leader
 			if char_snake == "party leader" then
 			    yield("/vbmai on")
+				yield("/bmrai on")
 				repeated_trial = repeated_trial + 1
 			end
 		end
@@ -1119,6 +1105,7 @@ while repeated_trial < (repeat_trial + 1) do
 	if GetCharacterCondition(34) == true and GetCharacterCondition(26) == false and GetTargetName()~="Exit" then --if we aren't in combat and in a duty
 		--yield("/equipguud") --this is super annoying and not needed
 		yield("/vbmai on")
+		yield("/bmrai on")
 		yield("/rotation auto")
 		--only party leader will do cd 5 because otherwise its spammy
 		if char_snake == "party leader" then
@@ -1142,8 +1129,7 @@ while repeated_trial < (repeat_trial + 1) do
 		whereismydoodie = 1
 		customized_targeting = 0
 		customized_behaviour = 0
+		yield("/rotation Cancel")
 	end
 	yield("/wait "..cycleTime) --the entire fuster cluck is looping at this rate
 end
-
---closerdecuman4

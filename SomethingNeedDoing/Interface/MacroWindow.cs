@@ -1,7 +1,9 @@
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
+using ECommons.SimpleGui;
 using ImGuiNET;
 using SomethingNeedDoing.Exceptions;
 using SomethingNeedDoing.Misc;
@@ -16,27 +18,49 @@ namespace SomethingNeedDoing.Interface;
 /// <summary>
 /// Main window for macro execution.
 /// </summary>
-internal class MacroWindow : Window
+internal class MacroWindow : ConfigWindow
 {
     private readonly Regex incrementalName = new(@"(?<all> \((?<index>\d+)\))$", RegexOptions.Compiled);
 
     private INode? draggedNode = null;
     private MacroNode? activeMacroNode = null;
+    private static TitleBarButton LockButton = null!;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MacroWindow"/> class.
     /// </summary>
     public MacroWindow()
-        : base($"Something Need Doing {Service.Plugin.GetType().Assembly.GetName().Version}###SomethingNeedDoing")
     {
-        this.Size = new Vector2(525, 600);
-        this.SizeCondition = ImGuiCond.FirstUseEver;
-        this.RespectCloseHotkey = false;
+        LockButton = new()
+        {
+            Click = OnLockButtonClick,
+            Icon = Service.Configuration.LockWindow ? FontAwesomeIcon.Lock : FontAwesomeIcon.LockOpen,
+            IconOffset = new(3, 2),
+            ShowTooltip = () => ImGui.SetTooltip("Lock window position and size"),
+        };
+    }
+
+    public static void Setup()
+    {
+        EzConfigGui.Window.WindowName = $"Something Need Doing {Service.Plugin.GetType().Assembly.GetName().Version}###SomethingNeedDoing";
+        EzConfigGui.Window.Size = new Vector2(525, 600);
+        EzConfigGui.Window.SizeCondition = ImGuiCond.FirstUseEver;
+        EzConfigGui.Window.RespectCloseHotkey = false;
+        EzConfigGui.Window.TitleBarButtons.Add(LockButton);
+    }
+
+    private void OnLockButtonClick(ImGuiMouseButton m)
+    {
+        if (m == ImGuiMouseButton.Left)
+        {
+            Service.Configuration.LockWindow = !Service.Configuration.LockWindow;
+            LockButton.Icon = Service.Configuration.LockWindow ? FontAwesomeIcon.Lock : FontAwesomeIcon.LockOpen;
+        }
     }
 
     private static FolderNode RootFolder => Service.Configuration.RootFolder;
 
-    public override void Update() => this.Flags = Service.Configuration.LockWindow ? ImGuiWindowFlags.NoMove : 0;
+    public override void Update() => EzConfigGui.Window.Flags = Service.Configuration.LockWindow ? ImGuiWindowFlags.NoMove : 0;
 
     /// <inheritdoc/>
     public override void PreDraw() => ImGui.PushStyleColor(ImGuiCol.ResizeGrip, 0);
@@ -47,7 +71,6 @@ internal class MacroWindow : Window
     /// <inheritdoc/>
     public override void Draw()
     {
-        ImGuiUtils.TitleBarLockButton(() => { Service.Configuration.LockWindow ^= true; }, 3, UiBuilder.IconFont);
         ImGui.Columns(2);
         this.DisplayNodeTree();
 
@@ -99,18 +122,11 @@ internal class MacroWindow : Window
 
     private void DisplayNode(INode node)
     {
-        ImGui.PushID(node.Name);
-
+        using var _ = ImRaii.PushId(node.Name);
         if (node is FolderNode folderNode)
-        {
             this.DisplayFolderNode(folderNode);
-        }
         else if (node is MacroNode macroNode)
-        {
             this.DisplayMacroNode(macroNode);
-        }
-
-        ImGui.PopID();
     }
 
     private void DisplayMacroNode(MacroNode node)
@@ -242,7 +258,7 @@ internal class MacroWindow : Window
 
         ImGui.SameLine();
         if (ImGuiEx.IconButton(FontAwesomeIcon.QuestionCircle, "Help"))
-            Service.Plugin.OpenHelpWindow();
+            EzConfigGui.WindowSystem.Windows.FirstOrDefault(w => w.WindowName == HelpWindow.WindowName)!.IsOpen ^= true;
 
         if (Service.MacroManager.State == LoopState.NotLoggedIn)
         { /* Nothing to do */

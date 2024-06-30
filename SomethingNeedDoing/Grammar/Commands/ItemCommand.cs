@@ -22,7 +22,7 @@ internal class ItemCommand : MacroCommand
 
     public static nint itemContextMenuAgent = nint.Zero;
     public delegate void UseItemDelegate(nint itemContextMenuAgent, uint itemID, uint inventoryPage, uint inventorySlot, short a5);
-    public static UseItemDelegate UseItemSig;
+    public static UseItemDelegate UseItemSig = null!;
 
     private readonly string itemName;
     private readonly ItemQualityModifier itemQualityMod;
@@ -44,7 +44,7 @@ internal class ItemCommand : MacroCommand
             try
             {
                 UseItemSig = Marshal.GetDelegateForFunctionPointer<UseItemDelegate>(Service.SigScanner.ScanText("E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 89 7C 24 38"));
-                unsafe { itemContextMenuAgent = (nint)Framework.Instance()->GetUiModule()->GetAgentModule()->GetAgentByInternalId(AgentId.InventoryContext); }
+                unsafe { itemContextMenuAgent = (nint)Framework.Instance()->GetUIModule()->GetAgentModule()->GetAgentByInternalId(AgentId.InventoryContext); }
             }
             catch { Svc.Log.Error($"Failed to load {nameof(UseItemSig)}"); }
         }

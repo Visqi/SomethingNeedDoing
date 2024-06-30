@@ -3,18 +3,19 @@
   Author: McVaxius
   Link: https://discord.com/channels/1162031769403543643/1162799234874093661/1190858719546835065
 
-for the below table templates,.. the 2nd (last var)
-0 return home to fc entrance, 1 return home to a bell, 2 don't return home, 3 is gridania inn
+for the below table templates,.. the 2nd var
+0 return home to fc entrance, 1 return home to a bell, 2 don't return home, 3 is gridania inn, 4 limsa bell near aetheryte
 ]]
 
 --enter in names of chars that can edit emblems are in same GC as the FC otherwise it will update the GC for 15k gil
 --warning it will attempt to change the free company allegiance just in case. make sure the char has 15k gil
+--3rd var here is the tag if you are changing it
 local chars_EMBLEM = {
-  {"First Last@Server", 0},
-  {"First Last@Server", 0},
-  {"First Last@Server", 0},
-  {"First Last@Server", 0},
-  {"First Last@Server", 0}
+  {"First Last@Server", 0, "WHEEA"},
+  {"First Last@Server", 0, "WHEEB"},
+  {"First Last@Server", 0, "WHEEC"},
+  {"First Last@Server", 0, "WHEED"},
+  {"First Last@Server", 0, "WHEEE"}
 }
 
 --enter in names of characters that will be responsible for triggering FC Buffs
@@ -26,16 +27,20 @@ local chars_FCBUFF = {
   {"First Last@Server", 0}
 }
 
---names of chars to do turnins
+--[[
+names of chars to do turnins
+The last var is whether this char will attempt GC supply turnins and attempt rank promotions.
+this will take up to 15-20 seconds so dont enable it for every character unless you really need it (supply missions for leveling jobs basically)
+]]
 local chars_fn = {
- {"First Last@Server", 0},
- {"First Last@Server", 0},
- {"First Last@Server", 0},
- {"First Last@Server", 0},
- {"First Last@Server", 0},
- {"First Last@Server", 0},
- {"First Last@Server", 0},
- {"First Last@Server", 0}
+ {"First Last@Server", 0, 0},
+ {"First Last@Server", 0, 0},
+ {"First Last@Server", 0, 0},
+ {"First Last@Server", 0, 0},
+ {"First Last@Server", 0, 0},
+ {"First Last@Server", 0, 0},
+ {"First Last@Server", 0, 0},
+ {"First Last@Server", 0, 0}
 }
 
 -------------------------
@@ -48,7 +53,8 @@ local chars_fn = {
 rcuck_count   = 1	--0..n starting the counter at 1, this is in case your manually resuming or want to start at later index value instead of just commenting out parts of it
 gachi_jumpy   = 0 	--0=no jump, 1=yes jump.  jump or not. sometimes navmesh goes through the shortcut in uldah and sometimes gets stuck getting to bells in housing districts
 auto_eqweep   = 0	--0=no, 1=yes + job change.  Basically this will check to see if your on a DOH or DOL, if you are then it will scan your DOW/DOM and switch you to the highest level one you have, auto equip and save gearset. niche feature i like for myself . off by default
-config_sell   = 0	--0=dont do anything,1=change char setting to not give dailog for non tradeables etc selling to npc, 2=reset setting back to yes check for non tradeables etc selling to npc. usecase for 1 and 2 are one time things for a cleaning run so that they can subsequently handle selling or not selling. this feature will be stripped out once limiana updaptes AR
+config_sell   = 0	--0=dont do anything,1=change char setting to not give dialog for non tradeables etc selling to npc, 2=reset setting back to yes check for non tradeables etc selling to npc. usecase for 1 and 2 are one time things for a cleaning run so that they can subsequently handle selling or not selling. this feature will be stripped out once limiana updaptes AR
+nnl			  = 1   --leave the novicenetwork
 ----------------------
 --Refueling Configs --
 ----------------------
@@ -60,8 +66,8 @@ restock_amt   = 66666 --n>0 minimum amount of total fuel to reach, when restocki
 process_fc_buffs = 1	--0=no,1=yes. do we bother with fc buffs? turning this on will run the chars from chars_FCBUFF to turn on FC buffs
 buy_fc_buffs     = 1 	--0=no,1=yes. do we refresh the buffs on this run?  turning this on will run the chars from chars_FCBUFF to buy FC buffs and it will attempt to buy "Seal Sweetener II" 15 times
 process_players  = 1	--0=no,1=yes. do we run the actual GC turnins? turning this on will run the chars from chars_fn to go do seal turnins and process whatever deliveroo rules you setup
-process_emblem   = 0	--0=no,1=yes. do we randomize the emblem on this run? turning this on will process the chars from chars_EMBLEM and go randomize their FC emblems. btw rank 7 FC gets additional crest unlocks.
-
+process_emblem   = 0	--0=no,1=yes. do we randomize the emblem on this run? turning this on will process the chars from chars_EMBLEM and go randomize their FC emblems. btw rank 7 FC gets additional crest unlocks. remember this has to be the FC leader
+process_tags	 = 0	--0=no, 1=full randomize, 2=lowercase only, 3=uppercase only, 4=randomly full upper OR lowercase, 5=pick from emblem configuration list. remember this has to be the FC leader
 --[[
 ------------------------
 --SCRIPT REQUIREMENTS --
@@ -106,7 +112,9 @@ YesAlready -> YesNo -> /Purchase the action .*/
 --some ideas for next version
 --https://discord.com/channels/1001823907193552978/1196163718216679514/1215227696607531078
 --stop repeating code for returning home.. introduces danger of errors popping up
---add in a check to see which job that isnt DOL or DOH is highest and switch to it for the auto equip shenanigans. but only if they are on a doh or dol job. make it a configuration option
+
+--FC TAG Randomizer?!?!
+--FC Tag re-writer?!?!
 ]]
 
 
@@ -116,6 +124,10 @@ loadfiyel = os.getenv("appdata").."\\XIVLauncher\\pluginConfigs\\SomethingNeedDo
 functionsToLoad = loadfile(loadfiyel)
 functionsToLoad()
 DidWeLoadcorrectly()
+
+--debug new stuff
+--yield("FC Tag hehehe -> "..generateFiveDigitText(process_tags))
+--yield("/pcraft stop")
 
 -- Specify the path to your text file
 --[[
@@ -166,6 +178,112 @@ function Final_GC_Cleaning()
 	--added 5 second wait here because sometimes they get stuck.
 	yield("/wait 5")
 	
+	if nnl == 1 then
+		yield("/novicenetworkleave")
+	end
+	
+	--try to turn in supply mission items and rankup before leaving if its set for that char
+	if chars_fn[rcuck_count][3] == 1 then
+		yield("/echo movement stopped - time for GC turn ins")
+		--yield("<wait.15>")
+		--yield("/waitaddon SelectString <maxwait.120>")
+		yield("/visland stop")
+		yield("/wait 1")
+		yield("/target Personnel Officer")
+		yield("/wait 1")
+		yield("/send NUMPAD0")
+		yield("/pcall SelectString true 0 <wait.1>")
+		yield("/send NUMPAD0")
+		yield("/wait 1")
+		yield("/send NUMPAD0")
+		yield("/wait 1")
+		yield("/pcall GrandCompanySupplyList true 0 1 2")
+		yield("/wait 1")
+		yield("/send NUMPAD0")
+		yield("/wait 1")
+		yield("/send NUMPAD0")
+		yield("/wait 1")
+		yield("/send ESCAPE <wait.1.5>")
+		yield("/send ESCAPE <wait.1.5>")
+		yield("/wait 3")
+		GCrenk = GetFlamesGCRank()
+		if GetMaelstromGCRank() > GCrenk then
+			GC renk = GetMaelstromGCRank()
+		end
+		if GetAddersGCRank() > GCrenk then
+			GC renk = GetAddersGCRank()
+		end
+		if GCrenk < 4 then --we can go up to 4 safely if we are below it. if you put in the effort to finish GC log 1, go pop rank 5 :~D
+			--try to promote
+			yield("/wait 1")
+			yield("/target Personnel Officer")
+			yield("/wait 1")
+			yield("/send NUMPAD0")
+			yield("/wait 1")
+			yield("/send NUMPAD2")
+			yield("/wait 0.5")
+			yield("/send NUMPAD0")
+			yield("/wait 0.5")
+			yield("/send NUMPAD0")
+			yield("/send ESCAPE <wait.1.5>")
+			yield("/send ESCAPE <wait.1.5>")
+			yield("/wait 3")
+			--wait for char condition 1
+			while GetCharacterCondition(32) == true and GetCharacterCondition(35) == true do
+				yield("/wait 1")
+			end
+			yield("/wait 2")
+		end
+		if GCrenk < 7 and GCrenk > 4 then --if we are above 4 and below 7 we can go up to 7
+			--try to promote
+			yield("/wait 1")
+			yield("/target Personnel Officer")
+			yield("/wait 1")
+			yield("/send NUMPAD0")
+			yield("/wait 1")
+			yield("/send NUMPAD2")
+			yield("/wait 0.5")
+			yield("/send NUMPAD0")
+			yield("/wait 0.5")
+			yield("/send NUMPAD0")
+			yield("/send ESCAPE <wait.1.5>")
+			yield("/send ESCAPE <wait.1.5>")
+			yield("/wait 3")
+			--wait for char condition 1
+			while GetCharacterCondition(32) == true and GetCharacterCondition(35) == true do
+				yield("/wait 1")
+			end
+			yield("/wait 2")
+		end
+		--output a log of the GC ranks and your current job level to a log file stored in the SND folder
+		GCrenk = GetFlamesGCRank()
+		if GetMaelstromGCRank() > GCrenk then
+			GCrenk = GetMaelstromGCRank()
+		end
+		if GetAddersGCRank() > GCrenk then
+			GCrenk = GetAddersGCRank()
+		end
+		local folderPath = os.getenv("appdata").."\\XIVLauncher\\pluginConfigs\\SomethingNeedDoing\\"
+		local file = io.open(folderPath .. "GCrankLog.txt", "a")
+		if file then
+			-- Write text to the file
+			currentTime = os.date("*t")
+			formattedTime = string.format("%04d-%02d-%02d %02d:%02d:%02d", currentTime.year, currentTime.month, currentTime.day, currentTime.hour, currentTime.min, currentTime.sec)
+			file:write(formattedTime.." - "..chars_fn[rcuck_count][1].." - Job Lv - "..GetLevel().." - GC Rank - "..GCrenk.."\n")
+			-- Close the file handle
+			file:close()
+			yield("/echo Text has been written to '" .. folderPath .. "GCrankLog.txt'")
+		else
+			yield("/echo Error: Unable to open file for writing")
+		end
+	end
+	
+	--limsa aetheryte
+	if chars_fn[rcuck_count][2] == 4 then
+		return_to_limsa_bell()
+		yield("/wait 8")
+	end
+	
 	--if we are tp to inn. we will go to gridania yo
 	if chars_fn[rcuck_count][2] == 3 then
 		return_to_inn()
@@ -213,7 +331,7 @@ end
 GetPlayerGC(), 1 = Maelstrom, 2 = Adder?, 3 = ImmortalFlames
 GetFCGrandCompany(), text instead of enum of above
 ]]
-if process_emblem == 1 then
+if process_emblem == 1 or process_tags > 0 then
 	for i=1, #chars_EMBLEM do
 		yield("/echo "..chars_EMBLEM[i][1])
 		yield("/ays relog " ..chars_EMBLEM[i][1])
@@ -242,19 +360,35 @@ if process_emblem == 1 then
 		ungabunga()	--quick escape in case we got stuck in menu
 
 		 --now we get to the emblematizer
-		yield("<wait.5>")
-		yield("/target \"OIC Officer of Arms\"")
-		yield("/wait 0.5")
-		yield("/lockon")
-		yield("/wait 0.5")
-		yield("/automove")
-		yield("<wait.2>")
-		yield("/interact")
-		yield("<wait.3>")
-		yield("/pcall FreeCompanyCrestEditor true 5 0 0")
-		yield("<wait.2>")
-		yield("/pcall FreeCompanyCrestEditor false 0")
-		yield("<wait.2>")
+		if process_emblem == 1 then
+			yield("<wait.5>")
+			yield("/target \"OIC Officer of Arms\"")
+			yield("/wait 0.5")
+			yield("/lockon")
+			yield("/wait 0.5")
+			yield("/automove")
+			yield("<wait.2>")
+			yield("/interact")
+			yield("<wait.3>")
+			yield("/pcall FreeCompanyCrestEditor true 5 0 0")
+			yield("<wait.2>")
+			yield("/pcall FreeCompanyCrestEditor false 0")
+			yield("<wait.2>")
+		end
+
+		--process tag changing
+		--0=no, 1=full randomize, 2=lowercase only, 3=uppercase only, 4=randomly full upper OR lowercase, 5=pick from emblem configuration list. remember this has to be the FC leader
+		if process_tags > 0 then
+			tagnem = "Wheee"
+			--random tag generator
+			if process_tags < 5 then
+				tagnem = generateFiveDigitText(process_tags)
+			end
+			if process_tags == 5 then
+				tagnem = chars_EMBLEM[i][3]
+			end
+			--* do the actual tag assignment now
+		end
 
 		--if we are tp to inn. we will go to gridania yo
 		if chars_EMBLEM[i][2] ~= 2 then
@@ -384,10 +518,13 @@ if process_players == 1 then
 		end
 		TeleportToGCTown()
 		ZoneTransition()
+		yield("/echo Walk to GC attempt 1")
 		yield("/wait 2")
 		WalkToGC()
+		yield("/echo Walk to GC attempt 2")
 		yield("/wait 2")
 		WalkToGC()
+		yield("/echo Walk to GC attempt 3?")
 		yield("/wait 2")
 		WalkToGC()
 		rcuck_count = i

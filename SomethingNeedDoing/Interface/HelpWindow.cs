@@ -24,6 +24,7 @@ namespace SomethingNeedDoing.Interface;
 /// </summary>
 internal class HelpWindow : Window
 {
+    public static new readonly string WindowName = "Something Need Doing Help";
     private static readonly Vector4 ShadedColor = new(0.68f, 0.68f, 0.68f, 1.0f);
 
     private readonly (string Name, string? Alias, string Description, string[] Modifiers, string[] Examples)[] commandData = new[]
@@ -261,8 +262,7 @@ internal class HelpWindow : Window
     /// <summary>
     /// Initializes a new instance of the <see cref="HelpWindow"/> class.
     /// </summary>
-    public HelpWindow()
-        : base("Something Need Doing Help")
+    public HelpWindow(): base(WindowName)
     {
         this.Flags |= ImGuiWindowFlags.NoScrollbar;
 
@@ -329,12 +329,56 @@ internal class HelpWindow : Window
         ImGui.PushFont(UiBuilder.MonoFont);
 
         DisplayChangelog(
-        "2024-04-18",
+        "2024-06-29",
+        "- Updated for Dawntrail/APIX.\n" +
+        "- Removed the different GetUsedActionID commands\n");
+
+        DisplayChangelog(
+        "2024-06-23",
+        "- Added GetLastInstanceServerID()\n" +
+        "- Added GetLastInstanceZoneID()\n");
+
+        DisplayChangelog(
+        "2024-06-21",
+        "- Added DropboxStart()\n" +
+        "- Added DropboxStop()\n" +
+        "- Added DropboxIsBusy()\n" +
+        "- Added DropboxGetItemQuantity()\n" +
+        "- Added DropboxSetItemQuantity()\n");
+
+        DisplayChangelog(
+        "2024-06-19",
+        "- Added GetFreeSlotsInContainer()\n" +
+        "- Added GetCurrentWorld()\n" +
+        "- Added GetHomeWorld()\n" +
+        "- Added the relevant sheet info needed for the above commands to Help\n");
+
+        DisplayChangelog(
+        "2024-05-23",
+        "- Fixes for the last two commands.\n");
+
+        DisplayChangelog(
+        "2024-05-18",
+        "- Added SetMapFlag()\n" +
+        "- Added DistanceBetween()\n");
+
+        DisplayChangelog(
+        "2024-05-11",
+        "- Added HasTarget()\n");
+
+        DisplayChangelog(
+        "2024-05-09",
+        "- Added IsAchievementComplete() (requires achievements to be loaded manually)\n" +
+        "- Added HasFlightUnlocked()\n");
+
+        DisplayChangelog(
+        "2024-05-06",
+        "- Added HasPlugin()\n" +
         "- Added SetNodeText()\n");
 
         DisplayChangelog(
         "2024-04-22",
-        "- IsNodeVisible() supports checking arbitrarily nested nodes.\n" +
+        "- IsNodeVisible() supports checking arbitrarily nested nodes. (breaking change from requiring node positions to node ids)\n" +
         "- Added GetHP()\n" +
         "- Added GetMaxHP()\n" +
         "- Added GetMP()\n" +
@@ -1370,6 +1414,7 @@ yield(""/echo done!"")
             (nameof(CharacterStateCommands), CharacterStateCommands.Instance),
             (nameof(CraftingCommands), CraftingCommands.Instance),
             (nameof(EntityStateCommands), EntityStateCommands.Instance),
+            (nameof(InternalCommands), InternalCommands.Instance),
             (nameof(InventoryCommands), InventoryCommands.Instance),
             (nameof(IpcCommands), IpcCommands.Instance),
             (nameof(QuestCommands), QuestCommands.Instance),
@@ -1470,7 +1515,9 @@ yield(""/echo done!"")
                 ("Duty Roulette", this.DrawDutyRoulette),
                 ("Ocean Fishing Spots", this.DrawOceanFishingSpots),
                 ("Achievements", this.DrawAchievements),
-                ("ObjectKinds", this.DrawObjectKinds),
+                ("ObjectKinds", this.DrawEnum<ObjectKind>),
+                ("Worlds", this.DrawWorlds),
+                ("InventoryTypes", this.DrawEnum<InventoryType>),
             };
 
             foreach (var (title, dele) in tabs)
@@ -1506,13 +1553,24 @@ yield(""/echo done!"")
             ImGui.TextUnformatted($"gold @ {new Vector3(l.Item1, l.Item2, l.Item3)}");
     }
 
-    private void DrawObjectKinds()
+    private void DrawWorlds()
     {
         using var font = ImRaii.PushFont(UiBuilder.MonoFont);
         ImGui.PushStyleColor(ImGuiCol.Text, ShadedColor);
-        foreach (var value in Enum.GetValues(typeof(ObjectKind)))
+        foreach (var r in Service.DataManager.GetExcelSheet<World>()!.Where(w => w.IsPublic && w.DataCenter.Value?.RowId != 0))
         {
-            ImGui.Text($"{Enum.GetName(typeof(ObjectKind), value)}: {(byte)value}");
+            ImGui.Text($"{r.RowId}: {r.Name}");
+        }
+        ImGui.PopStyleColor();
+    }
+
+    private void DrawEnum<T>()
+    {
+        using var font = ImRaii.PushFont(UiBuilder.MonoFont);
+        ImGui.PushStyleColor(ImGuiCol.Text, ShadedColor);
+        foreach (var value in Enum.GetValues(typeof(T)))
+        {
+            ImGui.Text($"{Enum.GetName(typeof(T), value)}: {Convert.ChangeType(value, Enum.GetUnderlyingType(typeof(T)))}");
         }
         ImGui.PopStyleColor();
     }

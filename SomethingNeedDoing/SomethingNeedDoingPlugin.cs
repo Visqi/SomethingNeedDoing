@@ -1,17 +1,13 @@
 using ClickLib;
-using Dalamud.Game.Command;
-using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using ECommons;
-using ECommons.DalamudServices;
+using ECommons.SimpleGui;
+using ImGuiNET;
 using SomethingNeedDoing.Interface;
 using SomethingNeedDoing.Managers;
+using SomethingNeedDoing.Misc;
 using SomethingNeedDoing.Misc.Commands;
-using System;
-using System.Collections.Generic;
-using System.Configuration;
 using System.Linq;
-using System.Windows.Forms;
 
 namespace SomethingNeedDoing;
 
@@ -20,19 +16,17 @@ namespace SomethingNeedDoing;
 /// </summary>
 public sealed class SomethingNeedDoingPlugin : IDalamudPlugin
 {
+    public string Name => "Something Need Doing (Expanded Edition)";
     private const string Command = "/somethingneeddoing";
-    private static string[] Aliases => new string[] { "/pcraft", "/snd" };
-    private readonly List<string> registeredCommands = [];
+    private static string[] Aliases => ["/pcraft", "/snd"];
 
-    private readonly WindowSystem windowSystem;
-    private readonly MacroWindow macroWindow;
-    private readonly HelpWindow helpWindow;
+    private Watcher watcher;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SomethingNeedDoingPlugin"/> class.
     /// </summary>
     /// <param name="pluginInterface">Dalamud plugin interface.</param>
-    public SomethingNeedDoingPlugin(DalamudPluginInterface pluginInterface)
+    public SomethingNeedDoingPlugin(IDalamudPluginInterface pluginInterface)
     {
         pluginInterface.Create<Service>();
 
@@ -41,68 +35,31 @@ public sealed class SomethingNeedDoingPlugin : IDalamudPlugin
         Service.Plugin = this;
         Service.Configuration = SomethingNeedDoingConfiguration.Load(pluginInterface.ConfigDirectory);
 
-        ECommonsMain.Init(pluginInterface, this, Module.ObjectFunctions);
+        ECommonsMain.Init(pluginInterface, this, Module.ObjectFunctions, Module.DalamudReflector);
 
         Service.ChatManager = new ChatManager();
         Service.GameEventManager = new GameEventManager();
         Service.MacroManager = new MacroManager();
 
-        this.macroWindow = new();
-        this.helpWindow = new();
-        this.windowSystem = new("SomethingNeedDoing");
-        this.windowSystem.AddWindow(this.macroWindow);
-        this.windowSystem.AddWindow(this.helpWindow);
+        EzConfigGui.Init(new MacroWindow());
+        EzConfigGui.WindowSystem.AddWindow(new HelpWindow());
+        MacroWindow.Setup();
 
-        Service.Interface.UiBuilder.Draw += this.windowSystem.Draw;
-        Service.Interface.UiBuilder.OpenConfigUi += this.OnOpenConfigUi;
-        Service.CommandManager.AddHandler(Command, new CommandInfo(this.OnChatCommand)
-        {
-            HelpMessage = "Open a window to edit various settings.",
-            ShowInHelp = true,
-        });
-        this.registeredCommands.Add(Command);
-        foreach (var a in Aliases)
-        {
-            if (!Service.CommandManager.Commands.ContainsKey(a))
-            {
-                Service.CommandManager.AddHandler(a, new CommandInfo(this.OnChatCommand)
-                {
-                    HelpMessage = $"{Command} Alias",
-                    ShowInHelp = true
-                });
-                this.registeredCommands.Add(a);
-            }
-        }
+        EzCmd.Add(Command, OnChatCommand, "Open a window to edit various settings.");
+        Aliases.ToList().ForEach(a => EzCmd.Add(a, OnChatCommand, $"{Command} Alias"));
+
+        watcher = new();
     }
 
-    /// <inheritdoc/>
-    public string Name => "Something Need Doing (Expanded Edition)";
 
-    /// <inheritdoc/>
     public void Dispose()
     {
-        foreach (var c in this.registeredCommands)
-        {
-            Service.CommandManager.RemoveHandler(c);
-        }
-        this.registeredCommands.Clear();
-        Service.Interface.UiBuilder.OpenConfigUi -= this.OnOpenConfigUi;
-        Service.Interface.UiBuilder.Draw -= this.windowSystem.Draw;
-
-        this.windowSystem?.RemoveAllWindows();
-
         Service.MacroManager?.Dispose();
         Service.GameEventManager?.Dispose();
         Service.ChatManager?.Dispose();
         IpcCommands.Instance?.Dispose();
+        ECommonsMain.Dispose();
     }
-
-    /// <summary>
-    /// Open the help menu.
-    /// </summary>
-    internal void OpenHelpWindow() => this.helpWindow.IsOpen = true;
-
-    private void OnOpenConfigUi() => this.macroWindow.Toggle();
 
     private void OnChatCommand(string command, string arguments)
     {
@@ -110,7 +67,7 @@ public sealed class SomethingNeedDoingPlugin : IDalamudPlugin
 
         if (arguments == string.Empty)
         {
-            this.macroWindow.Toggle();
+            EzConfigGui.Window.IsOpen ^= true;
             return;
         }
         else if (arguments.StartsWith("run "))
@@ -224,7 +181,7 @@ public sealed class SomethingNeedDoingPlugin : IDalamudPlugin
         }
         else if (arguments == "help")
         {
-            this.OpenHelpWindow();
+            EzConfigGui.WindowSystem.Windows.FirstOrDefault(w => w.WindowName == HelpWindow.WindowName)!.IsOpen ^= true;
             return;
         }
         else if (arguments.StartsWith("cfg"))
