@@ -1,12 +1,12 @@
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Utility;
-using Dalamud.Interface.Windowing;
+using Dalamud.Interface.Utility.Raii;
+using ECommons.SimpleGui;
 using ImGuiNET;
 using SomethingNeedDoing.Exceptions;
 using SomethingNeedDoing.Misc;
 using System;
-using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -16,27 +16,49 @@ namespace SomethingNeedDoing.Interface;
 /// <summary>
 /// Main window for macro execution.
 /// </summary>
-internal class MacroWindow : Window
+internal class MacroWindow : ConfigWindow
 {
     private readonly Regex incrementalName = new(@"(?<all> \((?<index>\d+)\))$", RegexOptions.Compiled);
 
     private INode? draggedNode = null;
     private MacroNode? activeMacroNode = null;
+    private static TitleBarButton LockButton = null!;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MacroWindow"/> class.
     /// </summary>
     public MacroWindow()
-        : base($"Something Need Doing {Service.Plugin.GetType().Assembly.GetName().Version}###SomethingNeedDoing")
     {
-        this.Size = new Vector2(525, 600);
-        this.SizeCondition = ImGuiCond.FirstUseEver;
-        this.RespectCloseHotkey = false;
+        LockButton = new()
+        {
+            Click = OnLockButtonClick,
+            Icon = Service.Configuration.LockWindow ? FontAwesomeIcon.Lock : FontAwesomeIcon.LockOpen,
+            IconOffset = new(3, 2),
+            ShowTooltip = () => ImGui.SetTooltip("Lock window position and size"),
+        };
+    }
+
+    public static void Setup()
+    {
+        EzConfigGui.Window.WindowName = $"Something Need Doing {Service.Plugin.GetType().Assembly.GetName().Version}###SomethingNeedDoing";
+        EzConfigGui.Window.Size = new Vector2(525, 600);
+        EzConfigGui.Window.SizeCondition = ImGuiCond.FirstUseEver;
+        EzConfigGui.Window.RespectCloseHotkey = false;
+        EzConfigGui.Window.TitleBarButtons.Add(LockButton);
+    }
+
+    private void OnLockButtonClick(ImGuiMouseButton m)
+    {
+        if (m == ImGuiMouseButton.Left)
+        {
+            Service.Configuration.LockWindow = !Service.Configuration.LockWindow;
+            LockButton.Icon = Service.Configuration.LockWindow ? FontAwesomeIcon.Lock : FontAwesomeIcon.LockOpen;
+        }
     }
 
     private static FolderNode RootFolder => Service.Configuration.RootFolder;
 
-    public override void Update() => this.Flags = Service.Configuration.LockWindow ? ImGuiWindowFlags.NoMove : 0;
+    public override void Update() => EzConfigGui.Window.Flags = Service.Configuration.LockWindow ? ImGuiWindowFlags.NoMove : 0;
 
     /// <inheritdoc/>
     public override void PreDraw() => ImGui.PushStyleColor(ImGuiCol.ResizeGrip, 0);
@@ -47,14 +69,13 @@ internal class MacroWindow : Window
     /// <inheritdoc/>
     public override void Draw()
     {
-        ImGuiUtils.TitleBarLockButton(() => { Service.Configuration.LockWindow ^= true; }, 3, UiBuilder.IconFont);
         ImGui.Columns(2);
-        this.DisplayNodeTree();
+        DisplayNodeTree();
 
         ImGui.NextColumn();
-        this.DisplayMacroControls();
-        this.DisplayRunningMacros();
-        this.DisplayMacroEdit();
+        DisplayMacroControls();
+        DisplayRunningMacros();
+        DisplayMacroEdit();
 
         ImGui.Columns(1);
     }
@@ -63,7 +84,7 @@ internal class MacroWindow : Window
     {
         if (ImGuiEx.IconButton(FontAwesomeIcon.Plus, "Add macro"))
         {
-            var newNode = new MacroNode { Name = this.GetUniqueNodeName("Untitled macro") };
+            var newNode = new MacroNode { Name = GetUniqueNodeName("Untitled macro") };
             RootFolder.Children.Add(newNode);
             Service.Configuration.Save();
         }
@@ -71,7 +92,7 @@ internal class MacroWindow : Window
         ImGui.SameLine();
         if (ImGuiEx.IconButton(FontAwesomeIcon.FolderPlus, "Add folder"))
         {
-            var newNode = new FolderNode { Name = this.GetUniqueNodeName("Untitled folder") };
+            var newNode = new FolderNode { Name = GetUniqueNodeName("Untitled folder") };
             RootFolder.Children.Add(newNode);
             Service.Configuration.Save();
         }
@@ -80,11 +101,11 @@ internal class MacroWindow : Window
         if (ImGuiEx.IconButton(FontAwesomeIcon.FileImport, "Import macro from clipboard"))
         {
             var text = MiscHelpers.ConvertClipboardToSafeString();
-            var node = new MacroNode { Name = this.GetUniqueNodeName("Untitled macro") };
+            var node = new MacroNode { Name = GetUniqueNodeName("Untitled macro") };
             RootFolder.Children.Add(node);
 
             if (MiscHelpers.IsLuaCode(text))
-                node.IsLua = true;
+                node.Language = Language.Lua;
 
             node.Contents = text;
             Service.Configuration.Save();
@@ -93,42 +114,35 @@ internal class MacroWindow : Window
 
     private void DisplayNodeTree()
     {
-        this.DrawHeader();
-        this.DisplayNode(RootFolder);
+        DrawHeader();
+        DisplayNode(RootFolder);
     }
 
     private void DisplayNode(INode node)
     {
-        ImGui.PushID(node.Name);
-
+        using var _ = ImRaii.PushId(node.Name);
         if (node is FolderNode folderNode)
-        {
-            this.DisplayFolderNode(folderNode);
-        }
+            DisplayFolderNode(folderNode);
         else if (node is MacroNode macroNode)
-        {
-            this.DisplayMacroNode(macroNode);
-        }
-
-        ImGui.PopID();
+            DisplayMacroNode(macroNode);
     }
 
     private void DisplayMacroNode(MacroNode node)
     {
         var flags = ImGuiTreeNodeFlags.Leaf;
-        if (node == this.activeMacroNode)
+        if (node == activeMacroNode)
         {
             flags |= ImGuiTreeNodeFlags.Selected;
         }
 
         ImGui.TreeNodeEx($"{node.Name}##tree", flags);
 
-        this.DisplayNodePopup(node);
-        this.NodeDragDrop(node);
+        DisplayNodePopup(node);
+        NodeDragDrop(node);
 
         if (ImGui.IsItemClicked())
         {
-            this.activeMacroNode = node;
+            activeMacroNode = node;
         }
 
         ImGui.TreePop();
@@ -143,14 +157,14 @@ internal class MacroWindow : Window
 
         var expanded = ImGui.TreeNodeEx($"{node.Name}##tree");
 
-        this.DisplayNodePopup(node);
-        this.NodeDragDrop(node);
+        DisplayNodePopup(node);
+        NodeDragDrop(node);
 
         if (expanded)
         {
             foreach (var childNode in node.Children.ToArray())
             {
-                this.DisplayNode(childNode);
+                DisplayNode(childNode);
             }
 
             ImGui.TreePop();
@@ -164,7 +178,7 @@ internal class MacroWindow : Window
             var name = node.Name;
             if (ImGui.InputText($"##rename", ref name, 100, ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue))
             {
-                node.Name = this.GetUniqueNodeName(name);
+                node.Name = GetUniqueNodeName(name);
                 Service.Configuration.Save();
             }
 
@@ -172,7 +186,7 @@ internal class MacroWindow : Window
             {
                 if (ImGuiEx.IconButton(FontAwesomeIcon.Play, "Run"))
                 {
-                    this.RunMacro(macroNode);
+                    RunMacro(macroNode);
                 }
             }
 
@@ -180,7 +194,7 @@ internal class MacroWindow : Window
             {
                 if (ImGuiEx.IconButton(FontAwesomeIcon.Plus, "Add macro"))
                 {
-                    var newNode = new MacroNode { Name = this.GetUniqueNodeName("Untitled macro") };
+                    var newNode = new MacroNode { Name = GetUniqueNodeName("Untitled macro") };
                     folderNode.Children.Add(newNode);
                     Service.Configuration.Save();
                 }
@@ -188,7 +202,7 @@ internal class MacroWindow : Window
                 ImGui.SameLine();
                 if (ImGuiEx.IconButton(FontAwesomeIcon.FolderPlus, "Add folder"))
                 {
-                    var newNode = new FolderNode { Name = this.GetUniqueNodeName("Untitled folder") };
+                    var newNode = new FolderNode { Name = GetUniqueNodeName("Untitled folder") };
                     folderNode.Children.Add(newNode);
                     Service.Configuration.Save();
                 }
@@ -242,7 +256,10 @@ internal class MacroWindow : Window
 
         ImGui.SameLine();
         if (ImGuiEx.IconButton(FontAwesomeIcon.QuestionCircle, "Help"))
-            Service.Plugin.OpenHelpWindow();
+            EzConfigGui.WindowSystem.Windows.FirstOrDefault(w => w.WindowName == HelpWindow.WindowName)!.IsOpen ^= true;
+        ImGui.SameLine();
+        if (ImGuiEx.IconButton(FontAwesomeIcon.FileExcel, "Excel Browser"))
+            EzConfigGui.WindowSystem.Windows.FirstOrDefault(w => w.WindowName == ExcelWindow.WindowName)!.IsOpen ^= true;
 
         if (Service.MacroManager.State == LoopState.NotLoggedIn)
         { /* Nothing to do */
@@ -337,22 +354,22 @@ internal class MacroWindow : Window
 
     private void DisplayMacroEdit()
     {
-        var node = this.activeMacroNode;
+        var node = activeMacroNode;
         if (node is null)
             return;
 
         ImGui.Text("Macro Editor");
 
         if (ImGuiEx.IconButton(FontAwesomeIcon.Play, "Run"))
-            this.RunMacro(node);
+            RunMacro(node);
 
         ImGui.SameLine();
         if (ImGuiEx.IconButton(FontAwesomeIcon.TimesCircle, "Close"))
         {
-            this.activeMacroNode = null;
+            activeMacroNode = null;
         }
 
-        var luaEnabled = node.IsLua;
+        var luaEnabled = node.Language == Language.Lua;
         if (luaEnabled)
         {
             ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.HealerGreen);
@@ -363,7 +380,10 @@ internal class MacroWindow : Window
         ImGui.SameLine();
         if (ImGuiEx.IconButton(FontAwesomeIcon.Code, "Lua script"))
         {
-            node.IsLua ^= true;
+            if (node.Language == Language.Lua)
+                node.Language = Language.Native;
+            else
+                node.Language = Language.Lua;
             Service.Configuration.Save();
         }
 
@@ -408,7 +428,7 @@ internal class MacroWindow : Window
                 var v_min = -1;
                 var v_max = 999;
                 var loops = node.CraftLoopCount;
-                if (ImGui.InputInt("##CraftLoopCount", ref loops, 0) || this.MouseWheelInput(ref loops))
+                if (ImGui.InputInt("##CraftLoopCount", ref loops, 0) || MouseWheelInput(ref loops))
                 {
                     if (loops < v_min)
                         loops = v_min;
@@ -432,7 +452,7 @@ internal class MacroWindow : Window
             var text = MiscHelpers.ConvertClipboardToSafeString();
 
             if (MiscHelpers.IsLuaCode(text))
-                node.IsLua = true;
+                node.Language = Language.Lua;
 
             node.Contents = text;
             Service.Configuration.Save();
@@ -440,8 +460,7 @@ internal class MacroWindow : Window
 
         ImGui.PushItemWidth(-1);
         var useMono = !Service.Configuration.DisableMonospaced;
-        if (useMono)
-            ImGui.PushFont(UiBuilder.MonoFont);
+        using var font = ImRaii.PushFont(UiBuilder.MonoFont, useMono);
 
         var contents = node.Contents;
         if (ImGui.InputTextMultiline($"##{node.Name}-editor", ref contents, 100_000, new Vector2(-1, -1)))
@@ -449,9 +468,6 @@ internal class MacroWindow : Window
             node.Contents = contents;
             Service.Configuration.Save();
         }
-
-        if (useMono)
-            ImGui.PopFont();
 
         ImGui.PopItemWidth();
     }
@@ -464,7 +480,7 @@ internal class MacroWindow : Window
 
         while (nodeNames.Contains(name))
         {
-            var match = this.incrementalName.Match(name);
+            var match = incrementalName.Match(name);
             if (match.Success)
             {
                 var all = match.Groups["all"].Value;
@@ -487,7 +503,7 @@ internal class MacroWindow : Window
         {
             if (ImGui.BeginDragDropSource())
             {
-                this.draggedNode = node;
+                draggedNode = node;
                 ImGui.Text(node.Name);
                 ImGui.SetDragDropPayload("NodePayload", IntPtr.Zero, 0);
                 ImGui.EndDragDropSource();
@@ -505,15 +521,15 @@ internal class MacroWindow : Window
             }
 
             var targetNode = node;
-            if (!nullPtr && payload.IsDelivery() && this.draggedNode != null)
+            if (!nullPtr && payload.IsDelivery() && draggedNode != null)
             {
-                if (!Service.Configuration.TryFindParent(this.draggedNode, out var draggedNodeParent))
-                    throw new Exception($"Could not find parent of node \"{this.draggedNode.Name}\"");
+                if (!Service.Configuration.TryFindParent(draggedNode, out var draggedNodeParent))
+                    throw new Exception($"Could not find parent of node \"{draggedNode.Name}\"");
 
                 if (targetNode is FolderNode targetFolderNode)
                 {
-                    draggedNodeParent!.Children.Remove(this.draggedNode);
-                    targetFolderNode.Children.Add(this.draggedNode);
+                    draggedNodeParent!.Children.Remove(draggedNode);
+                    targetFolderNode.Children.Add(draggedNode);
                     Service.Configuration.Save();
                 }
                 else
@@ -524,19 +540,19 @@ internal class MacroWindow : Window
                     var targetNodeIndex = targetNodeParent!.Children.IndexOf(targetNode);
                     if (targetNodeParent == draggedNodeParent)
                     {
-                        var draggedNodeIndex = targetNodeParent.Children.IndexOf(this.draggedNode);
+                        var draggedNodeIndex = targetNodeParent.Children.IndexOf(draggedNode);
                         if (draggedNodeIndex < targetNodeIndex)
                         {
                             targetNodeIndex -= 1;
                         }
                     }
 
-                    draggedNodeParent!.Children.Remove(this.draggedNode);
-                    targetNodeParent.Children.Insert(targetNodeIndex, this.draggedNode);
+                    draggedNodeParent!.Children.Remove(draggedNode);
+                    targetNodeParent.Children.Insert(targetNodeIndex, draggedNode);
                     Service.Configuration.Save();
                 }
 
-                this.draggedNode = null;
+                draggedNode = null;
             }
 
             ImGui.EndDragDropTarget();
@@ -556,7 +572,7 @@ internal class MacroWindow : Window
         catch (Exception ex)
         {
             Service.ChatManager.PrintError($"Unexpected error");
-            Service.Log.Error(ex, "Unexpected error");
+            Svc.Log.Error(ex, "Unexpected error");
         }
     }
 

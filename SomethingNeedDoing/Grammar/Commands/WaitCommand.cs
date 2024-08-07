@@ -8,29 +8,16 @@ using System.Threading.Tasks;
 
 namespace SomethingNeedDoing.Grammar.Commands;
 
-/// <summary>
-/// The /wait command.
-/// </summary>
 internal class WaitCommand : MacroCommand
 {
-    private static readonly Regex Regex = new(@"^/wait\s+(?<wait>\d+(?:\.\d+)?)(?:-(?<until>\d+(?:\.\d+)?))?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    public static string[] Commands => ["wait"];
+    public static string Description => "The same as the wait modifier, but as a command.";
+    public static string[] Examples => ["/wait 1-5"];
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="WaitCommand"/> class.
-    /// </summary>
-    /// <param name="text">Original text.</param>
-    /// <param name="wait">Wait value.</param>
-    /// <param name="waitUntil">WaitUntil value.</param>
-    private WaitCommand(string text, int wait, int waitUntil)
-        : base(text, wait, waitUntil)
-    {
-    }
+    private static readonly Regex Regex = new($@"^/{string.Join("|", Commands)}\s+(?<wait>\d+(?:\.\d+)?)(?:-(?<until>\d+(?:\.\d+)?))?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    /// <summary>
-    /// Parse the text as a command.
-    /// </summary>
-    /// <param name="text">Text to parse.</param>
-    /// <returns>A parsed command.</returns>
+    private WaitCommand(string text, int wait, int waitUntil) : base(text, wait, waitUntil) { }
+
     public static WaitCommand Parse(string text)
     {
         var match = Regex.Match(text);
@@ -50,11 +37,10 @@ internal class WaitCommand : MacroCommand
             : new WaitCommand(text, wait, until);
     }
 
-    /// <inheritdoc/>
     public override async Task Execute(ActiveMacro macro, CancellationToken token)
     {
-        Service.Log.Debug($"Executing: {this.Text}");
+        Svc.Log.Debug($"Executing: {Text}");
 
-        await this.PerformWait(token);
+        await PerformWait(token);
     }
 }

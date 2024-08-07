@@ -14,53 +14,24 @@ internal abstract class MacroCommand
 {
     private static readonly Random Rand = new();
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MacroCommand"/> class.
-    /// </summary>
-    /// <param name="text">Original line text.</param>
-    /// <param name="waitMod">Wait value.</param>
-    protected MacroCommand(string text, WaitModifier waitMod)
-        : this(text, waitMod.Wait, waitMod.Until)
-    {
-    }
+    protected MacroCommand(string text) : this(text, 0, 0) { }
+    protected MacroCommand(string text, WaitModifier waitMod) : this(text, waitMod.Wait, waitMod.Until) { }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MacroCommand"/> class.
-    /// </summary>
-    /// <param name="text">Original line text.</param>
-    /// <param name="waitMod">Wait value.</param>
-    /// <param name="indexMod">Index value.</param>
-    protected MacroCommand(string text, WaitModifier waitMod, IndexModifier indexMod)
-        : this(text, waitMod.Wait, waitMod.Until, indexMod.ObjectId)
-    {
-    }
+    protected MacroCommand(string text, WaitModifier waitMod, IndexModifier indexMod) : this(text, waitMod.Wait, waitMod.Until, indexMod.ObjectId) { }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MacroCommand"/> class.
-    /// </summary>
-    /// <param name="text">Original line text.</param>
-    /// <param name="wait">Wait value.</param>
-    /// <param name="until">WaitUntil value.</param>
     protected MacroCommand(string text, int wait, int until)
     {
-        this.Text = text;
-        this.Wait = wait;
-        this.WaitUntil = until;
+        Text = text;
+        Wait = wait;
+        WaitUntil = until;
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MacroCommand"/> class.
-    /// </summary>
-    /// <param name="text">Original line text.</param>
-    /// <param name="wait">Wait value.</param>
-    /// <param name="until">WaitUntil value.</param>
-    /// <param name="index">Object index value.</param>
     protected MacroCommand(string text, int wait, int until, int index)
     {
-        this.Text = text;
-        this.Wait = wait;
-        this.WaitUntil = until;
-        this.ObjectIndex = index;
+        Text = text;
+        Wait = wait;
+        WaitUntil = until;
+        ObjectIndex = index;
     }
 
     /// <summary>
@@ -84,7 +55,7 @@ internal abstract class MacroCommand
     public int ObjectIndex { get; }
 
     /// <inheritdoc/>
-    public override string ToString() => this.Text;
+    public override string ToString() => Text;
 
     /// <summary>
     /// Execute a macro command.
@@ -118,20 +89,20 @@ internal abstract class MacroCommand
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     protected async Task PerformWait(CancellationToken token)
     {
-        if (this.Wait == 0 && this.WaitUntil == 0)
+        if (Wait == 0 && WaitUntil == 0)
             return;
 
         TimeSpan sleep;
-        if (this.WaitUntil == 0)
+        if (WaitUntil == 0)
         {
-            sleep = TimeSpan.FromMilliseconds(this.Wait);
-            Service.Log.Debug($"Sleeping for {sleep.TotalMilliseconds} millis");
+            sleep = TimeSpan.FromMilliseconds(Wait);
+            Svc.Log.Debug($"Sleeping for {sleep.TotalMilliseconds} millis");
         }
         else
         {
-            var value = Rand.Next(this.Wait, this.WaitUntil);
+            var value = Rand.Next(Wait, WaitUntil);
             sleep = TimeSpan.FromMilliseconds(value);
-            Service.Log.Debug($"Sleeping for {sleep.TotalMilliseconds} millis ({this.Wait} to {this.WaitUntil})");
+            Svc.Log.Debug($"Sleeping for {sleep.TotalMilliseconds} millis ({Wait} to {WaitUntil})");
         }
 
         await Task.Delay(sleep, token);

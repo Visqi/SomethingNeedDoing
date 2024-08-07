@@ -8,42 +8,31 @@ using System.Threading.Tasks;
 
 namespace SomethingNeedDoing.Grammar.Commands;
 
-/// <summary>
-/// The /loop command.
-/// </summary>
 internal class LoopCommand : MacroCommand
 {
+    public static string[] Commands => ["loop"];
+    public static string Description => "Loop the current macro forever, or a certain amount of times.";
+    public static string[] Examples => ["/loop", "/loop 5"];
+
     private const int MaxLoops = int.MaxValue;
-    private static readonly Regex Regex = new(@"^/loop(?:\s+(?<count>\d+))?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex Regex = new($@"^/{string.Join("|", Commands)}(?:\s+(?<count>\d+))?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly EchoModifier echoMod;
     private readonly int startingLoops;
     private int loopsRemaining;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="LoopCommand"/> class.
-    /// </summary>
-    /// <param name="text">Original text.</param>
-    /// <param name="loopCount">Loop count.</param>
-    /// <param name="wait">Wait value.</param>
-    /// <param name="echo">Echo value.</param>
     private LoopCommand(string text, int loopCount, WaitModifier wait, EchoModifier echo)
         : base(text, wait)
     {
-        this.loopsRemaining = loopCount >= 0 ? loopCount : MaxLoops;
-        this.startingLoops = this.loopsRemaining;
+        loopsRemaining = loopCount >= 0 ? loopCount : MaxLoops;
+        startingLoops = loopsRemaining;
 
-        if (Service.Configuration.LoopTotal && this.loopsRemaining != 0 && this.loopsRemaining != MaxLoops)
-            this.loopsRemaining -= 1;
+        if (Service.Configuration.LoopTotal && loopsRemaining != 0 && loopsRemaining != MaxLoops)
+            loopsRemaining -= 1;
 
-        this.echoMod = echo;
+        echoMod = echo;
     }
 
-    /// <summary>
-    /// Parse the text as a command.
-    /// </summary>
-    /// <param name="text">Text to parse.</param>
-    /// <returns>A parsed command.</returns>
     public static LoopCommand Parse(string text)
     {
         _ = WaitModifier.TryParse(ref text, out var waitModifier);
@@ -61,38 +50,33 @@ internal class LoopCommand : MacroCommand
         return new LoopCommand(text, countValue, waitModifier, echoModifier);
     }
 
-    /// <inheritdoc/>
     public override async Task Execute(ActiveMacro macro, CancellationToken token)
     {
-        Service.Log.Debug($"Executing: {this.Text}");
+        Svc.Log.Debug($"Executing: {Text}");
 
-        if (this.loopsRemaining == MaxLoops)
+        if (loopsRemaining == MaxLoops)
         {
-            if (this.echoMod.PerformEcho || Service.Configuration.LoopEcho)
-            {
+            if (echoMod.PerformEcho || Service.Configuration.LoopEcho)
                 Service.ChatManager.PrintMessage("Looping");
-            }
         }
         else
         {
-            if (this.echoMod.PerformEcho || Service.Configuration.LoopEcho)
+            if (echoMod.PerformEcho || Service.Configuration.LoopEcho)
             {
-                if (this.loopsRemaining == 0)
-                {
+                if (loopsRemaining == 0)
                     Service.ChatManager.PrintMessage("No loops remaining");
-                }
                 else
                 {
-                    var noun = this.loopsRemaining == 1 ? "loop" : "loops";
-                    Service.ChatManager.PrintMessage($"{this.loopsRemaining} {noun} remaining");
+                    var noun = loopsRemaining == 1 ? "loop" : "loops";
+                    Service.ChatManager.PrintMessage($"{loopsRemaining} {noun} remaining");
                 }
             }
 
-            this.loopsRemaining--;
+            loopsRemaining--;
 
-            if (this.loopsRemaining < 0)
+            if (loopsRemaining < 0)
             {
-                this.loopsRemaining = this.startingLoops;
+                loopsRemaining = startingLoops;
                 return;
             }
         }
@@ -101,6 +85,6 @@ internal class LoopCommand : MacroCommand
         Service.MacroManager.LoopCheckForPause();
         Service.MacroManager.LoopCheckForStop();
         await Task.Delay(10, token);
-        await this.PerformWait(token);
+        await PerformWait(token);
     }
 }

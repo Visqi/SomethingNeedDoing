@@ -3,36 +3,24 @@ using SomethingNeedDoing.Exceptions;
 using SomethingNeedDoing.Grammar.Modifiers;
 using SomethingNeedDoing.Misc;
 using System;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace SomethingNeedDoing.Grammar.Commands;
 
-/// <summary>
-/// The /send command.
-/// </summary>
 internal class ReleaseCommand : MacroCommand
 {
-    private static readonly Regex Regex = new(@"^/release\s+(?<name>.*?)\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    public static string[] Commands => ["release"];
+    public static string Description => "Releases arbitrary keystrokes with optional modifiers that have been set to hold. Keys are pressed in the same order as the command.";
+    public static string[] Examples => ["/release MULTIPLY", "/release NUMPAD0", "/release CONTROL+MENU+SHIFT+NUMPAD0"];
+
+    private static readonly Regex Regex = new($@"^/{string.Join("|", Commands)}\s+(?<name>.*?)\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly VirtualKey[] vkCodes;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ReleaseCommand"/> class.
-    /// </summary>
-    /// <param name="text">Original text.</param>
-    /// <param name="vkCodes">VirtualKey codes.</param>
-    /// <param name="wait">Wait value.</param>
-    private ReleaseCommand(string text, VirtualKey[] vkCodes, WaitModifier wait)
-        : base(text, wait) => this.vkCodes = vkCodes;
+    private ReleaseCommand(string text, VirtualKey[] vkCodes, WaitModifier wait) : base(text, wait) => this.vkCodes = vkCodes;
 
-    /// <summary>
-    /// Parse the text as a command.
-    /// </summary>
-    /// <param name="text">Text to parse.</param>
-    /// <returns>A parsed command.</returns>
     public static ReleaseCommand Parse(string text)
     {
         _ = WaitModifier.TryParse(ref text, out var waitModifier);
@@ -52,22 +40,19 @@ internal class ReleaseCommand : MacroCommand
         return new ReleaseCommand(text, vkCodes, waitModifier);
     }
 
-    /// <inheritdoc/>
     public override async Task Execute(ActiveMacro macro, CancellationToken token)
     {
-        Service.Log.Debug($"Executing: {this.Text}");
+        Svc.Log.Debug($"Executing: {Text}");
 
-        if (this.vkCodes.Length == 1)
-        {
-            Keyboard.Release(this.vkCodes[0]);
-        }
+        if (vkCodes.Length == 1)
+            Keyboard.Release(vkCodes[0]);
         else
         {
-            var key = this.vkCodes.Last();
-            var mods = this.vkCodes.SkipLast(1);
+            var key = vkCodes.Last();
+            var mods = vkCodes.SkipLast(1);
             Keyboard.Release(key, mods);
         }
 
-        await this.PerformWait(token);
+        await PerformWait(token);
     }
 }

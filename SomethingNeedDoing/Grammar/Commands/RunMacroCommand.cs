@@ -1,7 +1,6 @@
 using SomethingNeedDoing.Exceptions;
 using SomethingNeedDoing.Grammar.Modifiers;
 using SomethingNeedDoing.Misc;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,7 +12,11 @@ namespace SomethingNeedDoing.Grammar.Commands;
 /// </summary>
 internal class RunMacroCommand : MacroCommand
 {
-    private static readonly Regex Regex = new(@"^/runmacro\s+(?<name>.*?)\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    public static string[] Commands => ["runmacro"];
+    public static string Description => "Start a macro from within another macro.";
+    public static string[] Examples => ["/runmacro \"Sub macro\""];
+
+    private static readonly Regex Regex = new($@"^/{string.Join("|", Commands)}\s+(?<name>.*?)\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly string macroName;
 
@@ -47,17 +50,17 @@ internal class RunMacroCommand : MacroCommand
     /// <inheritdoc/>
     public override async Task Execute(ActiveMacro macro, CancellationToken token)
     {
-        Service.Log.Debug($"Executing: {this.Text}");
+        Svc.Log.Debug($"Executing: {Text}");
 
         var macroNode = Service.Configuration
             .GetAllNodes().OfType<MacroNode>()
-            .FirstOrDefault(macro => macro.Name == this.macroName);
+            .FirstOrDefault(macro => macro.Name == macroName);
 
         if (macroNode == default)
             throw new MacroCommandError("No macro with that name");
 
         Service.MacroManager.EnqueueMacro(macroNode);
 
-        await this.PerformWait(token);
+        await PerformWait(token);
     }
 }

@@ -1,15 +1,15 @@
 ﻿using FFXIVClientStructs.FFXIV.Client.UI;
 using System;
-using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace SomethingNeedDoing.Grammar.Modifiers;
 
-/// <summary>
-/// The &lt;condition&gt; modifier.
-/// </summary>
 internal class ConditionModifier : MacroModifier
 {
+    public static string Modifier => "<condition>";
+    public static string Description => "Require a crafting condition to perform the action specified. This is taken from the Synthesis window and may be localized to your client language.";
+    public static string[] Examples => ["/ac Observe <condition.poor>", "/ac \"Precise Touch\" <condition.good,excellent>", "/ac \"Byregot's Blessing\" <condition.not.poor>", "/ac \"Byregot's Blessing\" <condition.!poor>"];
+
     private static readonly Regex Regex = new(@"(?<modifier><condition\.(?<not>(not\.|\!))?(?<names>[^>]+)>)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly string[] conditions;
@@ -21,12 +21,6 @@ internal class ConditionModifier : MacroModifier
         this.negated = negated;
     }
 
-    /// <summary>
-    /// Parse the text as a modifier.
-    /// </summary>
-    /// <param name="text">Text to parse.</param>
-    /// <param name="command">A parsed modifier.</param>
-    /// <returns>A value indicating whether the modifier matched.</returns>
     public static bool TryParse(ref string text, out ConditionModifier command)
     {
         var match = Regex.Match(text);
@@ -48,34 +42,30 @@ internal class ConditionModifier : MacroModifier
         }
         else
         {
-            command = new ConditionModifier(Array.Empty<string>(), false);
+            command = new ConditionModifier([], false);
         }
 
         return success;
     }
 
-    /// <summary>
-    /// Check if the current crafting condition is active.
-    /// </summary>
-    /// <returns>A parsed command.</returns>
     public unsafe bool HasCondition()
     {
-        if (this.conditions.Length == 0)
+        if (conditions.Length == 0)
             return true;
 
-        var addon = Service.GameGui.GetAddonByName("Synthesis", 1);
+        var addon = Svc.GameGui.GetAddonByName("Synthesis", 1);
         if (addon == IntPtr.Zero)
         {
-            Service.Log.Debug("Could not find Synthesis addon");
+            Svc.Log.Debug("Could not find Synthesis addon");
             return true;
         }
 
         var addonPtr = (AddonSynthesis*)addon;
         var text = addonPtr->Condition->NodeText.ToString().ToLowerInvariant();
 
-        var matchesText = this.conditions.Any(name => name == text);
+        var matchesText = conditions.Any(name => name == text);
 
-        if (this.negated)
+        if (negated)
             matchesText ^= true;
 
         return matchesText;

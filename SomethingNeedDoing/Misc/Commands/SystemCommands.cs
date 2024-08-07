@@ -1,9 +1,8 @@
-﻿using ECommons.DalamudServices;
+﻿using ECommons.Reflection;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using ImGuiNET;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 
 namespace SomethingNeedDoing.Misc.Commands;
@@ -14,7 +13,7 @@ public class SystemCommands
 
     public List<string> ListAllFunctions()
     {
-        var methods = this.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+        var methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
         var list = new List<string>();
         foreach (var method in methods.Where(x => x.Name != nameof(ListAllFunctions) && x.DeclaringType != typeof(object)))
         {
@@ -33,4 +32,6 @@ public class SystemCommands
     public void LogInfo(object text) => Svc.Log.Info($"{text}");
     public void LogDebug(object text) => Svc.Log.Debug($"{text}");
     public void LogVerbose(object text) => Svc.Log.Verbose($"{text}");
+
+    public bool HasPlugin(string name) => DalamudReflector.TryGetDalamudPlugin(name, out _, false, true);
 }

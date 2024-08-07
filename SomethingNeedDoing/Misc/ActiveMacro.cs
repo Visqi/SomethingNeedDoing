@@ -2,10 +2,10 @@
 using SomethingNeedDoing.Exceptions;
 using SomethingNeedDoing.Grammar;
 using SomethingNeedDoing.Grammar.Commands;
+using SomethingNeedDoing.Managers;
 using SomethingNeedDoing.Misc.Commands;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Text;
 
@@ -25,16 +25,16 @@ internal partial class ActiveMacro : IDisposable
     /// <param name="node">The node to run.</param>
     public ActiveMacro(MacroNode node)
     {
-        this.Node = node;
+        Node = node;
 
-        if (node.IsLua)
+        if (node.Language == Language.Lua)
         {
-            this.Steps = [];
+            Steps = [];
             return;
         }
 
         var contents = ModifyMacroForCraftLoop(node.Contents, node.CraftingLoop, node.CraftLoopCount);
-        this.Steps = MacroParser.Parse(contents).ToList();
+        Steps = MacroParser.Parse(contents).ToList();
     }
 
     /// <summary>
@@ -91,12 +91,12 @@ internal partial class ActiveMacro : IDisposable
             ? $"/craft {craftCount}{echoMod}"
             : $"/gate {craftCount - 1}{echoMod}";
 
-        var clickSteps = string.Join("\n", new string[]
-        {
+        var clickSteps = string.Join("\n",
+        [
             $@"/waitaddon ""RecipeNote""{maxwaitMod}",
-            $@"/click ""synthesize""",
+            $@"/click ""RecipeNote Synthesize""",
             $@"/waitaddon ""Synthesis""{maxwaitMod}",
-        });
+        ]);
 
         var loopStep = $"/loop{echoMod}";
 
@@ -154,24 +154,24 @@ internal partial class ActiveMacro : IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
-        this.luaGenerator?.Dispose();
-        this.lua?.Dispose();
+        luaGenerator?.Dispose();
+        lua?.Dispose();
     }
 
     /// <summary>
     /// Go to the next step.
     /// </summary>
-    public void NextStep() => this.StepIndex++;
+    public void NextStep() => StepIndex++;
 
     /// <summary>
     /// Loop.
     /// </summary>
     public void Loop()
     {
-        if (this.Node.IsLua)
+        if (Node.Language == Language.Lua)
             throw new MacroCommandError("Loop is not supported for Lua scripts");
 
-        this.StepIndex = -1;
+        StepIndex = -1;
     }
 
     /// <summary>
@@ -180,12 +180,12 @@ internal partial class ActiveMacro : IDisposable
     /// <returns>A command.</returns>
     public MacroCommand? GetCurrentStep()
     {
-        if (this.Node.IsLua)
+        if (Node.Language == Language.Lua)
         {
-            if (this.lua == null)
-                this.InitLuaScript();
+            if (lua == null)
+                InitLuaScript();
 
-            var results = this.luaGenerator!.Call();
+            var results = luaGenerator!.Call();
             if (results.Length == 0)
                 return null;
 
@@ -195,17 +195,19 @@ internal partial class ActiveMacro : IDisposable
             var command = MacroParser.ParseLine(text);
 
             if (command != null)
-                this.Steps.Add(command);
+                Steps.Add(command);
 
             return command;
         }
+        if (Node.Language == Language.CSharp)
+            CSharpManager.RunSnippet(Node.Contents);
 
-        return this.StepIndex < 0 || this.StepIndex >= this.Steps.Count ? null : this.Steps[this.StepIndex];
+        return StepIndex < 0 || StepIndex >= Steps.Count ? null : Steps[StepIndex];
     }
 
     private void InitLuaScript()
     {
-        var script = this.Node.Contents
+        var script = Node.Contents
             .Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
             .Select(line => $"  {line}")
             .Join('\n');
@@ -237,93 +239,46 @@ internal partial class ActiveMacro : IDisposable
             var methods = type.GetMethods(flags);
             foreach (var method in methods)
             {
-                Service.Log.Debug($"Adding Lua method: {method.Name}");
+                Svc.Log.Debug($"Adding Lua method: {method.Name}");
                 lua.RegisterFunction(method.Name, obj, method);
             }
         }
 
-        this.lua = new Lua();
-        this.lua.State.Encoding = Encoding.UTF8;
-        this.lua.LoadCLRPackage();
+        lua = new Lua();
+        lua.State.Encoding = Encoding.UTF8;
+        lua.LoadCLRPackage();
 
         #region special methods
-        RegisterClassMethods(this.lua, ActionCommands.Instance);
-        RegisterClassMethods(this.lua, AddonCommands.Instance);
-        RegisterClassMethods(this.lua, CharacterStateCommands.Instance);
-        RegisterClassMethods(this.lua, CraftingCommands.Instance);
-        RegisterClassMethods(this.lua, EntityStateCommands.Instance);
-        RegisterClassMethods(this.lua, InventoryCommands.Instance);
-        RegisterClassMethods(this.lua, IpcCommands.Instance);
-        RegisterClassMethods(this.lua, QuestCommands.Instance);
-        RegisterClassMethods(this.lua, SystemCommands.Instance);
-        RegisterClassMethods(this.lua, WorldStateCommands.Instance);
-        RegisterClassMethods(this.lua, InternalCommands.Instance);
+        RegisterClassMethods(lua, ActionCommands.Instance);
+        RegisterClassMethods(lua, AddonCommands.Instance);
+        RegisterClassMethods(lua, CharacterStateCommands.Instance);
+        RegisterClassMethods(lua, CraftingCommands.Instance);
+        RegisterClassMethods(lua, EntityStateCommands.Instance);
+        RegisterClassMethods(lua, InventoryCommands.Instance);
+        RegisterClassMethods(lua, IpcCommands.Instance);
+        RegisterClassMethods(lua, QuestCommands.Instance);
+        RegisterClassMethods(lua, SystemCommands.Instance);
+        RegisterClassMethods(lua, WorldStateCommands.Instance);
+        RegisterClassMethods(lua, InternalCommands.Instance);
         #endregion
 
         script = string.Format(EntrypointTemplate, script);
 
-//        #region globals
-//        this.lua["Interface"] = Svc.PluginInterface;
-//        this.lua["IClientState"] = Svc.ClientState;
-//        this.lua["IGameGui"] = Svc.GameGui;
-//        this.lua["IDataManager"] = Svc.Data;
-//        this.lua["IBuddyList"] = Svc.Buddies;
-//        this.lua["IChatGui"] = Svc.Chat;
-//        this.lua["ICommandManager"] = Svc.Commands;
-//        this.lua["ICondition"] = Svc.Condition;
-//        this.lua["IFateTable"] = Svc.Fates;
-//        this.lua["IFlyTextGui"] = Svc.FlyText;
-//        this.lua["IFramework"] = Svc.Framework;
-//        this.lua["IGameNetwork"] = Svc.GameNetwork;
-//        this.lua["IJobGauges"] = Svc.Gauges;
-//        this.lua["IKeyState"] = Svc.KeyState;
-//        this.lua["ILibcFunction"] = Svc.LibcFunction;
-//        this.lua["IObjectTable"] = Svc.Objects;
-//        this.lua["IPartyFinderGui"] = Svc.PfGui;
-//        this.lua["IPartyList"] = Svc.Party;
-//        this.lua["ISigScanner"] = Svc.SigScanner;
-//        this.lua["ITargetManager"] = Svc.Targets;
-//        this.lua["IToastGui"] = Svc.Toasts;
-//        this.lua["IGameConfig"] = Svc.GameConfig;
-//        this.lua["IGameLifecycle"] = Svc.GameLifecycle;
-//        this.lua["IGamepadState"] = Svc.GamepadState;
-//        this.lua["IDtrBar"] = Svc.DtrBar;
-//        this.lua["IDutyState"] = Svc.DutyState;
-//        this.lua["IGameInteropProvider"] = Svc.Hook;
-//        this.lua["ITextureProvider"] = Svc.Texture;
-//        this.lua["IPluginLog"] = Svc.Log;
-//        this.lua["IAddonLifecycle"] = Svc.AddonLifecycle;
-//        this.lua["IAetheryteList"] = Svc.AetheryteList;
-//        this.lua["IAddonEventManager"] = Svc.AddonEventManager;
-//        this.lua["ITextureSubstitution"] = Svc.TextureSubstitution;
-//        this.lua["ITitleScreenMenu"] = Svc.TitleScreenMenu;
-//        unsafe
-//        {
-//#pragma warning disable CS8605 // Unboxing a possibly null value.
-//            this.lua["ActionManager"] = (ActionManager)Marshal.PtrToStructure((nint)ActionManager.Instance(), typeof(ActionManager));
-//            this.lua["AgentMap"] = (AgentMap)Marshal.PtrToStructure((nint)AgentMap.Instance(), typeof(AgentMap));
-//            this.lua["EnvManager"] = (EnvManager)Marshal.PtrToStructure((nint)EnvManager.Instance(), typeof(EnvManager));
-//            this.lua["EventFramework"] = (EventFramework)Marshal.PtrToStructure((nint)EventFramework.Instance(), typeof(EventFramework));
-//            this.lua["FateManager"] = (FateManager)Marshal.PtrToStructure((nint)FateManager.Instance(), typeof(FateManager));
-//            this.lua["Framework"] = (Framework)Marshal.PtrToStructure((nint)Framework.Instance(), typeof(Framework));
-//            this.lua["InventoryManager"] = (InventoryManager)Marshal.PtrToStructure((nint)InventoryManager.Instance(), typeof(InventoryManager));
-//            this.lua["PlayerState"] = (PlayerState)Marshal.PtrToStructure((nint)PlayerState.Instance(), typeof(PlayerState));
-//            this.lua["QuestManager"] = (QuestManager)Marshal.PtrToStructure((nint)QuestManager.Instance(), typeof(QuestManager));
-//            this.lua["RouletteController"] = (RouletteController)Marshal.PtrToStructure((nint)RouletteController.Instance(), typeof(RouletteController));
-//            this.lua["UIState"] = (UIState)Marshal.PtrToStructure((nint)UIState.Instance(), typeof(UIState));
-//#pragma warning restore CS8605 // Unboxing a possibly null value.
-//        }
-//        #endregion
+        lua.DoString(FStringSnippet);
+        lua.DoString(PackageSearchersSnippet);
 
-        this.lua.DoString(FStringSnippet);
-        this.lua.DoString(PackageSearchersSnippet);
+        foreach (var p in typeof(Svc).GetProperties())
+            lua[p.Name] = p.GetValue(typeof(Svc));
 
-        var results = this.lua.DoString(script);
+        foreach (var path in Service.Configuration.LuaRequirePaths)
+            lua.DoString($"table.insert(snd.require.paths, '{path}')");
+
+        var results = lua.DoString(script);
 
         if (results.Length == 0 || results[0] is not LuaFunction coro)
             throw new MacroCommandError("Could not get Lua entrypoint.");
 
-        this.luaGenerator = coro;
+        luaGenerator = coro;
     }
 }
 

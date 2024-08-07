@@ -1,5 +1,4 @@
 using ECommons.Automation;
-using ECommons.DalamudServices;
 using ECommons.Logging;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
@@ -16,34 +15,23 @@ using System.Threading.Tasks;
 
 namespace SomethingNeedDoing.Grammar.Commands;
 
-/// <summary>
-/// The /equipitem command.
-/// </summary>
 internal class EquipItemCommand : MacroCommand
 {
-    private static readonly Regex Regex = new(@"^/equipitem(?:\s+(?<itemid>\d+))?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    public static string[] Commands => ["equipitem"];
+    public static string Description => "Checks your inventory and armoury for an item and tries to equip it.";
+    public static string[] Examples => ["/equipitem 40280"];
+
+    private static readonly Regex Regex = new($@"^/{string.Join("|", Commands)}(?:\s+(?<itemid>\d+))?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly EchoModifier echoMod;
     private readonly uint itemID;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="EquipItemCommand"/> class.
-    /// </summary>
-    /// <param name="text">Original text.</param>
-    /// <param name="itemID">Item ID.</param>
-    /// <param name="wait">Wait value.</param>
-    /// <param name="echo">Echo value.</param>
     private EquipItemCommand(string text, uint itemID, WaitModifier wait, EchoModifier echo) : base(text, wait)
     {
         this.itemID = itemID;
-        this.echoMod = echo;
+        echoMod = echo;
     }
 
-    /// <summary>
-    /// Parse the text as a command.
-    /// </summary>
-    /// <param name="text">Text to parse.</param>
-    /// <returns>A parsed command.</returns>
     public static EquipItemCommand Parse(string text)
     {
         _ = WaitModifier.TryParse(ref text, out var waitModifier);
@@ -59,12 +47,11 @@ internal class EquipItemCommand : MacroCommand
         return new EquipItemCommand(text, itemID, waitModifier, echoModifier);
     }
 
-    /// <inheritdoc/>
     public override async Task Execute(ActiveMacro macro, CancellationToken token)
     {
-        EquipItem(this.itemID);
+        EquipItem(itemID);
         await Task.Delay(10, token);
-        await this.PerformWait(token);
+        await PerformWait(token);
     }
 
     private static int EquipAttemptLoops = 0;
@@ -107,7 +94,7 @@ internal class EquipItemCommand : MacroCommand
             or InventoryType.ArmoryWrist
             or InventoryType.ArmoryRings
             or InventoryType.ArmorySoulCrystal ? AgentId.ArmouryBoard : AgentId.Inventory;
-        var addonId = AgentModule.Instance()->GetAgentByInternalId(agentId)->GetAddonID();
+        var addonId = AgentModule.Instance()->GetAgentByInternalId(agentId)->GetAddonId();
         var ctx = AgentInventoryContext.Instance();
         ctx->OpenForItemSlot(pos.Value.inv, pos.Value.slot, addonId);
 
@@ -116,7 +103,7 @@ internal class EquipItemCommand : MacroCommand
         {
             for (var i = 0; i < contextMenu->AtkValuesCount; i++)
             {
-                var firstEntryIsEquip = ctx->EventIdSpan[i] == 25; // i'th entry will fire eventid 7+i; eventid 25 is 'equip'
+                var firstEntryIsEquip = ctx->EventIds[i] == 25; // i'th entry will fire eventid 7+i; eventid 25 is 'equip'
                 if (firstEntryIsEquip)
                 {
                     Svc.Log.Debug($"Equipping item #{itemId} from {pos.Value.inv} @ {pos.Value.slot}, index {i}");
@@ -141,7 +128,7 @@ internal class EquipItemCommand : MacroCommand
             var cont = InventoryManager.Instance()->GetInventoryContainer(inv);
             for (var i = 0; i < cont->Size; ++i)
             {
-                if (cont->GetInventorySlot(i)->ItemID == itemId)
+                if (cont->GetInventorySlot(i)->ItemId == itemId)
                 {
                     return (inv, i);
                 }

@@ -2,39 +2,32 @@ using SomethingNeedDoing.Exceptions;
 using SomethingNeedDoing.Grammar.Modifiers;
 using SomethingNeedDoing.Misc;
 using SomethingNeedDoing.Misc.Commands;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace SomethingNeedDoing.Grammar.Commands;
 
-/// <summary>
-/// The /require command.
-/// </summary>
 internal class RequireCommand : MacroCommand
 {
+    public static string[] Commands => ["require"];
+    public static string Description => "Require a certain effect to be present before continuing.";
+    public static string[] Examples => ["/require \"Well Fed\""];
+
     private const int StatusCheckMaxWait = 1000;
     private const int StatusCheckInterval = 250;
 
-    private static readonly Regex Regex = new(@"^/require\s+(?<name>.*?)\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex Regex = new($@"^/{string.Join("|", Commands)}\s+(?<name>.*?)\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly uint[] statusIDs;
     private readonly int maxWait;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RequireCommand"/> class.
-    /// </summary>
-    /// <param name="text">Original text.</param>
-    /// <param name="statusName">Status name.</param>
-    /// <param name="wait">Wait value.</param>
-    /// <param name="maxWait">MaxWait value.</param>
     private RequireCommand(string text, string statusName, WaitModifier wait, MaxWaitModifier maxWait) : base(text, wait)
     {
         statusName = statusName.ToLowerInvariant();
-        var sheet = Service.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.Status>()!;
-        this.statusIDs = sheet
-            .Where(row => row.Name.RawString.ToLowerInvariant() == statusName)
+        var sheet = Svc.Data.GetExcelSheet<Sheets.Status>()!;
+        statusIDs = sheet
+            .Where(row => row.Name.RawString.Equals(statusName, System.StringComparison.InvariantCultureIgnoreCase))
             .Select(row => row.RowId)
             .ToArray()!;
 
@@ -43,11 +36,6 @@ internal class RequireCommand : MacroCommand
             : maxWait.Wait;
     }
 
-    /// <summary>
-    /// Parse the text as a command.
-    /// </summary>
-    /// <param name="text">Text to parse.</param>
-    /// <returns>A parsed command.</returns>
     public static RequireCommand Parse(string text)
     {
         _ = WaitModifier.TryParse(ref text, out var waitModifier);
@@ -62,18 +50,17 @@ internal class RequireCommand : MacroCommand
         return new RequireCommand(text, nameValue, waitModifier, maxWaitModifier);
     }
 
-    /// <inheritdoc/>
     public override async Task Execute(ActiveMacro macro, CancellationToken token)
     {
-        Service.Log.Debug($"Executing: {this.Text}");
+        Svc.Log.Debug($"Executing: {Text}");
 
-        bool IsStatusPresent() => CharacterStateCommands.Instance.HasStatusId(this.statusIDs);
+        bool IsStatusPresent() => CharacterStateCommands.Instance.HasStatusId(statusIDs);
 
-        var hasStatus = await this.LinearWait(StatusCheckInterval, this.maxWait, IsStatusPresent, token);
+        var hasStatus = await LinearWait(StatusCheckInterval, maxWait, IsStatusPresent, token);
 
         if (!hasStatus)
             throw new MacroCommandError("Status effect not found");
 
-        await this.PerformWait(token);
+        await PerformWait(token);
     }
 }

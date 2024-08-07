@@ -1,9 +1,7 @@
 ﻿using AutoRetainerAPI;
-using ECommons.DalamudServices;
 using SomethingNeedDoing.IPC;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using System.Reflection;
 
@@ -12,10 +10,11 @@ namespace SomethingNeedDoing.Misc.Commands;
 public class IpcCommands
 {
     internal static IpcCommands Instance { get; } = new();
+    private readonly Dropbox dropbox;
 
     public List<string> ListAllFunctions()
     {
-        var methods = this.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+        var methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
         var list = new List<string>();
         foreach (var method in methods.Where(x => x.Name != nameof(ListAllFunctions) && x.DeclaringType != typeof(object)))
         {
@@ -29,16 +28,17 @@ public class IpcCommands
 
     internal IpcCommands()
     {
-        this._autoRetainerApi = new();
+        _autoRetainerApi = new();
         VislandIPC.Init();
         NavmeshIPC.Init();
         DeliverooIPC.Init();
         PandorasBoxIPC.Init();
+        dropbox = new();
     }
 
     internal void Dispose()
     {
-        this._autoRetainerApi.Dispose();
+        _autoRetainerApi.Dispose();
     }
 
     #region PandorasBox
@@ -99,42 +99,42 @@ public class IpcCommands
     #region AutoRetainer
     public unsafe void ARSetSuppressed(bool state) => _autoRetainerApi.Suppressed = state;
 
-    public unsafe List<string> ARGetRegisteredCharacters() =>
-        this._autoRetainerApi.GetRegisteredCharacters().AsParallel()
-        .Select(c => $"{this._autoRetainerApi.GetOfflineCharacterData(c).Name}@{this._autoRetainerApi.GetOfflineCharacterData(c).World}").ToList();
+    public unsafe List<string> ARGetRegisteredCharacters()
+        => _autoRetainerApi.GetRegisteredCharacters().AsParallel()
+        .Select(c => $"{_autoRetainerApi.GetOfflineCharacterData(c).Name}@{_autoRetainerApi.GetOfflineCharacterData(c).World}").ToList();
 
-    public unsafe List<string> ARGetRegisteredEnabledCharacters() =>
-        this._autoRetainerApi.GetRegisteredCharacters().AsParallel()
-        .Where(c => this._autoRetainerApi.GetOfflineCharacterData(c).Enabled)
-        .Select(c => $"{this._autoRetainerApi.GetOfflineCharacterData(c).Name}@{this._autoRetainerApi.GetOfflineCharacterData(c).World}").ToList();
+    public unsafe List<string> ARGetRegisteredEnabledCharacters()
+        => _autoRetainerApi.GetRegisteredCharacters().AsParallel()
+        .Where(c => _autoRetainerApi.GetOfflineCharacterData(c).Enabled)
+        .Select(c => $"{_autoRetainerApi.GetOfflineCharacterData(c).Name}@{_autoRetainerApi.GetOfflineCharacterData(c).World}").ToList();
 
-    public unsafe List<string> ARGetRegisteredRetainers() =>
-        this._autoRetainerApi.GetRegisteredCharacters().AsParallel()
-        .Select(c => this._autoRetainerApi.GetOfflineCharacterData(c).RetainerData.Select(r => r.Name)).SelectMany(names => names).ToList();
+    public unsafe List<string> ARGetRegisteredRetainers()
+        => _autoRetainerApi.GetRegisteredCharacters().AsParallel()
+        .Select(c => _autoRetainerApi.GetOfflineCharacterData(c).RetainerData.Select(r => r.Name)).SelectMany(names => names).ToList();
 
-    public unsafe List<string> ARGetRegisteredEnabledRetainers() =>
-        this._autoRetainerApi.GetRegisteredCharacters().AsParallel()
-        .Where(c => this._autoRetainerApi.GetOfflineCharacterData(c).Enabled)
-        .Select(c => this._autoRetainerApi.GetOfflineCharacterData(c).RetainerData
+    public unsafe List<string> ARGetRegisteredEnabledRetainers()
+        => _autoRetainerApi.GetRegisteredCharacters().AsParallel()
+        .Where(c => _autoRetainerApi.GetOfflineCharacterData(c).Enabled)
+        .Select(c => _autoRetainerApi.GetOfflineCharacterData(c).RetainerData
         .Where(r => r.HasVenture).Select(r => r.Name)).SelectMany(names => names).ToList();
 
-    public unsafe bool ARAnyWaitingToBeProcessed(bool allCharacters = false) => this.ARRetainersWaitingToBeProcessed(allCharacters) || this.ARSubsWaitingToBeProcessed(allCharacters);
+    public unsafe bool ARAnyWaitingToBeProcessed(bool allCharacters = false) => ARRetainersWaitingToBeProcessed(allCharacters) || ARSubsWaitingToBeProcessed(allCharacters);
 
     public unsafe bool ARRetainersWaitingToBeProcessed(bool allCharacters = false)
     {
         return !allCharacters
-            ? this._autoRetainerApi.GetOfflineCharacterData(Svc.ClientState.LocalContentId).RetainerData.AsParallel().Any(x => x.HasVenture && x.VentureEndsAt <= DateTime.Now.ToUnixTimestamp())
-            : this.GetAllEnabledCharacters().Any(character => this._autoRetainerApi.GetOfflineCharacterData(character).RetainerData.Any(x => x.HasVenture && x.VentureEndsAt <= DateTime.Now.ToUnixTimestamp()));
+            ? _autoRetainerApi.GetOfflineCharacterData(Svc.ClientState.LocalContentId).RetainerData.AsParallel().Any(x => x.HasVenture && x.VentureEndsAt <= DateTime.Now.ToUnixTimestamp())
+            : GetAllEnabledCharacters().Any(character => _autoRetainerApi.GetOfflineCharacterData(character).RetainerData.Any(x => x.HasVenture && x.VentureEndsAt <= DateTime.Now.ToUnixTimestamp()));
     }
 
     public unsafe bool ARSubsWaitingToBeProcessed(bool allCharacters = false)
     {
         return !allCharacters
-            ? this._autoRetainerApi.GetOfflineCharacterData(Svc.ClientState.LocalContentId).OfflineSubmarineData.AsParallel().Any(x => x.ReturnTime <= DateTime.Now.ToUnixTimestamp())
-            : this.GetAllEnabledCharacters().Any(c => this._autoRetainerApi.GetOfflineCharacterData(c).OfflineSubmarineData.Any(x => x.ReturnTime <= DateTime.Now.ToUnixTimestamp()));
+            ? _autoRetainerApi.GetOfflineCharacterData(Svc.ClientState.LocalContentId).OfflineSubmarineData.AsParallel().Any(x => x.ReturnTime <= DateTime.Now.ToUnixTimestamp())
+            : GetAllEnabledCharacters().Any(c => _autoRetainerApi.GetOfflineCharacterData(c).OfflineSubmarineData.Any(x => x.ReturnTime <= DateTime.Now.ToUnixTimestamp()));
     }
 
-    private unsafe ParallelQuery<ulong> GetAllEnabledCharacters() => this._autoRetainerApi.GetRegisteredCharacters().AsParallel().Where(c => this._autoRetainerApi.GetOfflineCharacterData(c).Enabled);
+    private unsafe ParallelQuery<ulong> GetAllEnabledCharacters() => _autoRetainerApi.GetRegisteredCharacters().AsParallel().Where(c => _autoRetainerApi.GetOfflineCharacterData(c).Enabled);
     #endregion
 
     #region YesAlready
@@ -175,5 +175,13 @@ public class IpcCommands
             data.Remove(nameof(SomethingNeedDoing));
         }
     }
+    #endregion
+
+    #region Dropbox
+    public void DropboxStart() => dropbox.BeginTradingQueue();
+    public void DropboxStop() => dropbox.Stop();
+    public bool DropboxIsBusy() => dropbox.IsBusy();
+    public int DropboxGetItemQuantity(uint id, bool hq) => dropbox.GetItemQuantity(id, hq);
+    public void DropboxSetItemQuantity(uint id, bool hq, int quantity) => dropbox.SetItemQuantity(id, hq, quantity);
     #endregion
 }

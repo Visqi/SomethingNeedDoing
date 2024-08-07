@@ -13,7 +13,11 @@ namespace SomethingNeedDoing.Grammar.Commands;
 /// </summary>
 internal class GateCommand : MacroCommand
 {
-    private static readonly Regex Regex = new(@"^/(craft|gate)(?:\s+(?<count>\d+))?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    public static string[] Commands => ["craft", "gate"];
+    public static string Description => "Similar to loop but used at the start of a macro with an infinite /loop at the end. Allows a certain amount of executions before stopping the macro.";
+    public static string[] Examples => ["/craft 10"];
+
+    private static readonly Regex Regex = new($@"^/({string.Join("|", Commands)})(?:\s+(?<count>\d+))?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly EchoModifier echoMod;
     private readonly int startingCrafts;
@@ -29,8 +33,8 @@ internal class GateCommand : MacroCommand
     private GateCommand(string text, int craftCount, WaitModifier wait, EchoModifier echo)
         : base(text, wait)
     {
-        this.startingCrafts = this.craftsRemaining = craftCount;
-        this.echoMod = echo;
+        startingCrafts = craftsRemaining = craftCount;
+        echoMod = echo;
     }
 
     /// <summary>
@@ -58,28 +62,28 @@ internal class GateCommand : MacroCommand
     /// <inheritdoc/>
     public override async Task Execute(ActiveMacro macro, CancellationToken token)
     {
-        Service.Log.Debug($"Executing: {this.Text}");
+        Svc.Log.Debug($"Executing: {Text}");
 
-        if (this.echoMod.PerformEcho || Service.Configuration.LoopEcho)
+        if (echoMod.PerformEcho || Service.Configuration.LoopEcho)
         {
-            if (this.craftsRemaining == 0)
+            if (craftsRemaining == 0)
             {
                 Service.ChatManager.PrintMessage("No crafts remaining");
             }
             else
             {
-                var noun = this.craftsRemaining == 1 ? "craft" : "crafts";
-                Service.ChatManager.PrintMessage($"{this.craftsRemaining} {noun} remaining");
+                var noun = craftsRemaining == 1 ? "craft" : "crafts";
+                Service.ChatManager.PrintMessage($"{craftsRemaining} {noun} remaining");
             }
         }
 
-        this.craftsRemaining--;
+        craftsRemaining--;
 
-        await this.PerformWait(token);
+        await PerformWait(token);
 
-        if (this.craftsRemaining < 0)
+        if (craftsRemaining < 0)
         {
-            this.craftsRemaining = this.startingCrafts;
+            craftsRemaining = startingCrafts;
             throw new GateComplete();
         }
     }

@@ -7,7 +7,6 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 using SomethingNeedDoing.Exceptions;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 
 namespace SomethingNeedDoing.Misc.Commands;
@@ -18,7 +17,7 @@ public class CraftingCommands()
 
     public List<string> ListAllFunctions()
     {
-        var methods = this.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+        var methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
         var list = new List<string>();
         foreach (var method in methods.Where(x => x.Name != nameof(ListAllFunctions) && x.DeclaringType != typeof(object)))
         {
@@ -27,9 +26,9 @@ public class CraftingCommands()
         }
         return list;
     }
-    public bool IsCrafting() => Service.Condition[ConditionFlag.Crafting] && !Service.Condition[ConditionFlag.PreparingToCraft];
+    public bool IsCrafting() => Svc.Condition[ConditionFlag.Crafting] && !Svc.Condition[ConditionFlag.PreparingToCraft];
 
-    public bool IsNotCrafting() => !this.IsCrafting();
+    public bool IsNotCrafting() => !IsCrafting();
 
     private unsafe int GetNodeTextAsInt(AtkTextNode* node, string error)
     {
@@ -50,19 +49,19 @@ public class CraftingCommands()
 
     private unsafe AddonSynthesis* GetSynthesisAddon()
     {
-        var ptr = Service.GameGui.GetAddonByName("Synthesis", 1);
+        var ptr = Svc.GameGui.GetAddonByName("Synthesis", 1);
         return ptr == nint.Zero ? throw new MacroCommandError("Could not find Synthesis addon") : (AddonSynthesis*)ptr;
     }
 
     public unsafe bool IsCollectable()
     {
-        var addon = this.GetSynthesisAddon();
-        return addon->AtkUnitBase.UldManager.NodeList[34]->IsVisible;
+        var addon = GetSynthesisAddon();
+        return addon->AtkUnitBase.UldManager.NodeList[34]->IsVisible();
     }
 
     public unsafe string GetCondition(bool lower = true)
     {
-        var addon = this.GetSynthesisAddon();
+        var addon = GetSynthesisAddon();
         var text = addon->Condition->NodeText.ToString();
 
         if (lower)
@@ -71,106 +70,106 @@ public class CraftingCommands()
         return text;
     }
 
-    public bool HasCondition(string condition, bool lower = true) => condition == this.GetCondition(lower);
+    public bool HasCondition(string condition, bool lower = true) => condition == GetCondition(lower);
 
     public unsafe int GetProgress()
     {
-        var addon = this.GetSynthesisAddon();
-        return this.GetNodeTextAsInt(addon->CurrentProgress, "Could not parse current progress number in the Synthesis addon");
+        var addon = GetSynthesisAddon();
+        return GetNodeTextAsInt(addon->CurrentProgress, "Could not parse current progress number in the Synthesis addon");
     }
 
     public unsafe int GetMaxProgress()
     {
-        var addon = this.GetSynthesisAddon();
-        return this.GetNodeTextAsInt(addon->MaxProgress, "Could not parse max progress number in the Synthesis addon");
+        var addon = GetSynthesisAddon();
+        return GetNodeTextAsInt(addon->MaxProgress, "Could not parse max progress number in the Synthesis addon");
     }
 
     public bool HasMaxProgress()
     {
-        var current = this.GetProgress();
-        var max = this.GetMaxProgress();
+        var current = GetProgress();
+        var max = GetMaxProgress();
         return current == max;
     }
 
     public unsafe int GetQuality()
     {
-        var addon = this.GetSynthesisAddon();
-        return this.GetNodeTextAsInt(addon->CurrentQuality, "Could not parse current quality number in the Synthesis addon");
+        var addon = GetSynthesisAddon();
+        return GetNodeTextAsInt(addon->CurrentQuality, "Could not parse current quality number in the Synthesis addon");
     }
 
     public unsafe int GetMaxQuality()
     {
-        var addon = this.GetSynthesisAddon();
-        return this.GetNodeTextAsInt(addon->MaxQuality, "Could not parse max quality number in the Synthesis addon");
+        var addon = GetSynthesisAddon();
+        return GetNodeTextAsInt(addon->MaxQuality, "Could not parse max quality number in the Synthesis addon");
     }
 
     public bool HasMaxQuality()
     {
-        var step = this.GetStep();
+        var step = GetStep();
 
         if (step <= 1)
             return false;
 
-        if (this.IsCollectable())
+        if (IsCollectable())
         {
-            var current = this.GetQuality();
-            var max = this.GetMaxQuality();
+            var current = GetQuality();
+            var max = GetMaxQuality();
             return current == max;
         }
         else
         {
-            var percentHq = this.GetPercentHQ();
+            var percentHq = GetPercentHQ();
             return percentHq == 100;
         }
     }
 
     public unsafe int GetDurability()
     {
-        var addon = this.GetSynthesisAddon();
-        return this.GetNodeTextAsInt(addon->CurrentDurability, "Could not parse current durability number in the Synthesis addon");
+        var addon = GetSynthesisAddon();
+        return GetNodeTextAsInt(addon->CurrentDurability, "Could not parse current durability number in the Synthesis addon");
     }
 
     public unsafe int GetMaxDurability()
     {
-        var addon = this.GetSynthesisAddon();
-        return this.GetNodeTextAsInt(addon->StartingDurability, "Could not parse max durability number in the Synthesis addon");
+        var addon = GetSynthesisAddon();
+        return GetNodeTextAsInt(addon->StartingDurability, "Could not parse max durability number in the Synthesis addon");
     }
 
     public int GetCp()
     {
-        var cp = Service.ClientState.LocalPlayer?.CurrentCp ?? 0;
+        var cp = Svc.ClientState.LocalPlayer?.CurrentCp ?? 0;
         return (int)cp;
     }
 
     public int GetMaxCp()
     {
-        var cp = Service.ClientState.LocalPlayer?.MaxCp ?? 0;
+        var cp = Svc.ClientState.LocalPlayer?.MaxCp ?? 0;
         return (int)cp;
     }
 
     public int GetGp()
     {
-        var gp = Service.ClientState.LocalPlayer?.CurrentGp ?? 0;
+        var gp = Svc.ClientState.LocalPlayer?.CurrentGp ?? 0;
         return (int)gp;
     }
 
     public int GetMaxGp()
     {
-        var gp = Service.ClientState.LocalPlayer?.MaxGp ?? 0;
+        var gp = Svc.ClientState.LocalPlayer?.MaxGp ?? 0;
         return (int)gp;
     }
 
     public unsafe int GetStep()
     {
-        var addon = this.GetSynthesisAddon();
-        var step = this.GetNodeTextAsInt(addon->StepNumber, "Could not parse current step number in the Synthesis addon");
+        var addon = GetSynthesisAddon();
+        var step = GetNodeTextAsInt(addon->StepNumber, "Could not parse current step number in the Synthesis addon");
         return step;
     }
 
     public unsafe int GetPercentHQ()
     {
-        var addon = this.GetSynthesisAddon();
-        var step = this.GetNodeTextAsInt(addon->HQPercentage, "Could not parse percent hq number in the Synthesis addon");
+        var addon = GetSynthesisAddon();
+        var step = GetNodeTextAsInt(addon->HQPercentage, "Could not parse percent hq number in the Synthesis addon");
         return step;
     }
 
@@ -179,20 +178,20 @@ public class CraftingCommands()
         var im = InventoryManager.Instance();
         if (im == null)
         {
-            Service.Log.Error("InventoryManager was null");
+            Svc.Log.Error("InventoryManager was null");
             return false;
         }
 
         var equipped = im->GetInventoryContainer(InventoryType.EquippedItems);
         if (equipped == null)
         {
-            Service.Log.Error("InventoryContainer was null");
+            Svc.Log.Error("InventoryContainer was null");
             return false;
         }
 
         if (equipped->Loaded == 0)
         {
-            Service.Log.Error($"InventoryContainer is not loaded");
+            Svc.Log.Error($"InventoryContainer is not loaded");
             return false;
         }
 
@@ -216,20 +215,20 @@ public class CraftingCommands()
         var im = InventoryManager.Instance();
         if (im == null)
         {
-            Service.Log.Error("InventoryManager was null");
+            Svc.Log.Error("InventoryManager was null");
             return false;
         }
 
         var equipped = im->GetInventoryContainer(InventoryType.EquippedItems);
         if (equipped == null)
         {
-            Service.Log.Error("InventoryContainer was null");
+            Svc.Log.Error("InventoryContainer was null");
             return false;
         }
 
         if (equipped->Loaded == 0)
         {
-            Service.Log.Error("InventoryContainer is not loaded");
+            Svc.Log.Error("InventoryContainer is not loaded");
             return false;
         }
 
@@ -256,7 +255,7 @@ public class CraftingCommands()
 
         if (allExtract)
         {
-            Service.Log.Debug("All items are spiritbound, pausing");
+            Svc.Log.Debug("All items are spiritbound, pausing");
             return true;
         }
 
@@ -265,7 +264,7 @@ public class CraftingCommands()
             // Don't wait, extract immediately
             if (within == 100)
             {
-                Service.Log.Debug("An item is spiritbound, pausing");
+                Svc.Log.Debug("An item is spiritbound, pausing");
                 return true;
             }
 
@@ -273,12 +272,12 @@ public class CraftingCommands()
             // i.e. 100 and 99, do another craft to finish the 99.
             if (nextHighest >= within)
             {
-                Service.Log.Debug($"The next highest spiritbond is above ({nextHighest} >= {within}), keep going");
+                Svc.Log.Debug($"The next highest spiritbond is above ({nextHighest} >= {within}), keep going");
                 return false;
             }
             else
             {
-                Service.Log.Debug($"The next highest spiritbond is below ({nextHighest} < {within}), pausing");
+                Svc.Log.Debug($"The next highest spiritbond is below ({nextHighest} < {within}), pausing");
                 return true;
             }
         }
@@ -291,7 +290,7 @@ public class CraftingCommands()
         var uiState = UIState.Instance();
         if (uiState == null)
         {
-            Service.Log.Error("UIState is null");
+            Svc.Log.Error("UIState is null");
             return false;
         }
 
@@ -303,45 +302,17 @@ public class CraftingCommands()
         return hasStats;
     }
 
-    public unsafe uint GetProgressIncrease(uint actionID) => this.GetActionResult(actionID).Progress;
+    public unsafe uint GetProgressIncrease(uint actionID) => GetActionResult(actionID).Progress;
 
-    public unsafe uint GetQualityIncrease(uint actionID) => this.GetActionResult(actionID).Quality;
+    public unsafe uint GetQualityIncrease(uint actionID) => GetActionResult(actionID).Quality;
 
     private unsafe (uint Progress, uint Quality) GetActionResult(uint id)
     {
-
         var agent = AgentCraftActionSimulator.Instance();
         if (agent == null) return (0, 0);
 
-        var progress = 0U;
-        var quality = 0U;
-
-        // Find Progress
-        var p = (ProgressEfficiencyCalculation*)agent->Progress;
-        for (var i = 0; i < sizeof(ProgressEfficiencyCalculations) / sizeof(ProgressEfficiencyCalculation); i++)
-        {
-            if (p == null) break;
-            if (p->ActionId == id)
-            {
-                progress = p->ProgressIncrease;
-                break;
-            }
-
-            p++;
-        }
-
-        var q = (QualityEfficiencyCalculation*)agent->Quality;
-        for (var i = 0; i < sizeof(QualityEfficiencyCalculations) / sizeof(QualityEfficiencyCalculation); i++)
-        {
-            if (q == null) break;
-            if (q->ActionId == id)
-            {
-                quality = q->QualityIncrease;
-                break;
-            }
-
-            q++;
-        }
+        var progress = agent->Progress.FirstOrDefault(_p => _p.ActionId == id).ProgressIncrease;
+        var quality = agent->Quality.FirstOrDefault(q => q.ActionId == id).QualityIncrease;
 
         return (progress, quality);
     }

@@ -9,6 +9,8 @@ namespace SomethingNeedDoing.Misc;
 
 internal static class ImGuiUtils
 {
+    public static readonly Vector4 ShadedColor = new(0.68f, 0.68f, 0.68f, 1.0f);
+
     public static void URLLink(string URL, string textToShow = "", bool showTooltip = true, ImFontPtr? iconFont = null)
     {
         ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.Button]);
@@ -43,6 +45,19 @@ internal static class ImGuiUtils
         {
             AddUnderline(ImGui.GetStyle().Colors[(int)ImGuiCol.Button], 1.0f);
         }
+    }
+
+    public static unsafe void ClickToCopyText(string text, Vector4 colour = default, string? textCopy = null)
+    {
+        textCopy ??= text;
+        if (colour == default) colour = *ImGui.GetStyleColorVec4(ImGuiCol.Text);
+        ImGui.TextColored(colour, text);
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+            if (textCopy != text) ImGui.SetTooltip(textCopy);
+        }
+        if (ImGui.IsItemClicked()) ImGui.SetClipboardText($"{textCopy}");
     }
 
     public static void TextLink(Action callback, string textToShow = "")

@@ -1,13 +1,12 @@
 ﻿using ECommons;
 using ECommons.Automation;
-using ECommons.DalamudServices;
+using ECommons.Automation.UIInput;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using SomethingNeedDoing.Exceptions;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -19,7 +18,7 @@ public class AddonCommands
 
     public List<string> ListAllFunctions()
     {
-        var methods = this.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+        var methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
         var list = new List<string>();
         foreach (var method in methods.Where(x => x.Name != nameof(ListAllFunctions) && x.DeclaringType != typeof(object)))
         {
@@ -47,7 +46,7 @@ public class AddonCommands
         var baseAddress = *(nint*)((nint)agent + 6960);
         if (baseAddress == 0) return;
 
-        for (int i = 0; i < numDutiesLoaded; i++)
+        for (var i = 0; i < numDutiesLoaded; i++)
         {
             var dutyId = GetDutyId(baseAddress, i);
             if (dutyCode == dutyId)
@@ -90,25 +89,24 @@ public class AddonCommands
         return 0;
     }
 
-    public unsafe bool IsAddonVisible(string addonName)
-    {
-        var ptr = Service.GameGui.GetAddonByName(addonName, 1);
-        if (ptr == nint.Zero)
-            return false;
-
-        var addon = (AtkUnitBase*)ptr;
-        return addon->IsVisible;
-    }
+    public unsafe bool IsAddonVisible(string addonName) => GenericHelpers.TryGetAddonByName<AtkUnitBase>(addonName, out var addon) && addon->IsVisible;
+    public unsafe bool IsAddonReady(string addonName) => GenericHelpers.TryGetAddonByName<AtkUnitBase>(addonName, out var addon) && GenericHelpers.IsAddonReady(addon);
 
     public unsafe bool IsNodeVisible(string addonName, params int[] ids)
     {
-        var ptr = Service.GameGui.GetAddonByName(addonName, 1);
+        var ptr = Svc.GameGui.GetAddonByName(addonName, 1);
         if (ptr == nint.Zero)
             return false;
 
         var addon = (AtkUnitBase*)ptr;
         var node = GetNodeByIDChain(addon->GetRootNode(), ids);
-        return node != null && node->IsVisible;
+        return node != null && node->IsVisible();
+    }
+
+    public void GetClicks()
+    {
+        foreach (var s in ClickHelper.GetAvailableClicks())
+            Svc.Log.Info(s);
     }
 
     private unsafe AtkResNode* GetNodeByIDChain(AtkResNode* node, params int[] ids)
@@ -116,7 +114,7 @@ public class AddonCommands
         if (node == null || ids.Length <= 0)
             return null;
 
-        if (node->NodeID == ids[0])
+        if (node->NodeId == ids[0])
         {
             if (ids.Length == 1)
                 return node;
@@ -126,7 +124,7 @@ public class AddonCommands
 
             var childNode = node->ChildNode;
             if (childNode != null)
-                return GetNodeByIDChain(childNode, newList.ToArray());
+                return GetNodeByIDChain(childNode, [.. newList]);
 
             if ((int)node->Type >= 1000)
             {
@@ -134,7 +132,7 @@ public class AddonCommands
                 var component = componentNode->Component;
                 var uldManager = component->UldManager;
                 childNode = uldManager.NodeList[0];
-                return childNode == null ? null : GetNodeByIDChain(childNode, newList.ToArray());
+                return childNode == null ? null : GetNodeByIDChain(childNode, [.. newList]);
             }
 
             return null;
@@ -145,19 +143,9 @@ public class AddonCommands
         return sibNode != null ? GetNodeByIDChain(sibNode, ids) : null;
     }
 
-    public unsafe bool IsAddonReady(string addonName)
-    {
-        var ptr = Service.GameGui.GetAddonByName(addonName, 1);
-        if (ptr == nint.Zero)
-            return false;
-
-        var addon = (AtkUnitBase*)ptr;
-        return addon->UldManager.LoadedState == AtkLoadState.Loaded;
-    }
-
     public unsafe string GetToastNodeText(int index, params int[] nodeNumbers)
     {
-        var ptr = (AtkUnitBase*)Service.GameGui.GetAddonByName("_WideText", index);
+        var ptr = (AtkUnitBase*)Svc.GameGui.GetAddonByName("_WideText", index);
         if (ptr == null) return string.Empty;
         if (ptr->UldManager.NodeList == null || ptr->UldManager.NodeListCount < 4) return string.Empty;
 
@@ -198,7 +186,7 @@ public class AddonCommands
         if (nodeNumbers.Length == 0)
             throw new MacroCommandError("At least one node number is required");
 
-        var ptr = Service.GameGui.GetAddonByName(addonName, 1);
+        var ptr = Svc.GameGui.GetAddonByName(addonName, 1);
         if (ptr == nint.Zero)
             throw new MacroCommandError($"Could not find {addonName} addon");
 
@@ -238,12 +226,12 @@ public class AddonCommands
             return ((AtkCounterNode*)node)->NodeText.ToString();
 
         var textNode = (AtkTextNode*)node;
-        return textNode->NodeText.ToString();
+        return textNode->NodeText.ExtractText();
     }
 
     public unsafe void SetNodeText(string addonName, string text, params int[] ids)
     {
-        var ptr = Service.GameGui.GetAddonByName(addonName, 1);
+        var ptr = Svc.GameGui.GetAddonByName(addonName, 1);
         if (ptr == nint.Zero)
             return;
 
@@ -255,7 +243,7 @@ public class AddonCommands
 
     public unsafe string GetSelectStringText(int index)
     {
-        var ptr = Service.GameGui.GetAddonByName("SelectString", 1);
+        var ptr = Svc.GameGui.GetAddonByName("SelectString", 1);
         if (ptr == nint.Zero)
             throw new MacroCommandError("Could not find SelectString addon");
 
@@ -263,7 +251,7 @@ public class AddonCommands
         var popup = &addon->PopupMenu.PopupMenu;
 
         var count = popup->EntryCount;
-        Service.Log.Debug($"index={index} // Count={count} // {index < 0 || index > count}");
+        Svc.Log.Debug($"index={index} // Count={count} // {index < 0 || index > count}");
         if (index < 0 || index > count)
             throw new MacroCommandError("Index out of range");
 
@@ -275,7 +263,7 @@ public class AddonCommands
 
     public unsafe string GetSelectIconStringText(int index)
     {
-        var ptr = Service.GameGui.GetAddonByName("SelectIconString", 1);
+        var ptr = Svc.GameGui.GetAddonByName("SelectIconString", 1);
         if (ptr == nint.Zero)
             throw new MacroCommandError("Could not find SelectIconString addon");
 

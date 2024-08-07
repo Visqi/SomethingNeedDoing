@@ -1,13 +1,10 @@
 ﻿using Dalamud.Game.ClientState.Objects.Enums;
-using ECommons.DalamudServices;
 using ECommons.GameFunctions;
-using ECommons.Reflection;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Lumina.Excel.GeneratedSheets;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using System.Reflection;
 
@@ -19,7 +16,7 @@ internal class EntityStateCommands
 
     public List<string> ListAllFunctions()
     {
-        var methods = this.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+        var methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
         var list = new List<string>();
         foreach (var method in methods.Where(x => x.Name != nameof(ListAllFunctions) && x.DeclaringType != typeof(object)))
         {
@@ -39,10 +36,9 @@ internal class EntityStateCommands
     public float GetTargetRawYPos() => Svc.Targets.Target?.Position.Y ?? 0;
     public float GetTargetRawZPos() => Svc.Targets.Target?.Position.Z ?? 0;
     public unsafe bool IsTargetCasting() => ((Character*)Svc.Targets.Target?.Address!)->IsCasting;
-    public unsafe uint GetTargetActionID() => ((Character*)Svc.Targets.Target?.Address!)->GetCastInfo()->ActionID;
-    public unsafe uint GetTargetUsedActionID() => ((Character*)Svc.Targets.Target?.Address!)->GetCastInfo()->UsedActionId;
-    public float GetTargetHP() => (Svc.Targets.Target as Dalamud.Game.ClientState.Objects.Types.Character)?.CurrentHp ?? 0;
-    public float GetTargetMaxHP() => (Svc.Targets.Target as Dalamud.Game.ClientState.Objects.Types.Character)?.MaxHp ?? 0;
+    public unsafe uint GetTargetActionID() => ((Character*)Svc.Targets.Target?.Address!)->GetCastInfo()->ActionId;
+    public float GetTargetHP() => (Svc.Targets.Target as Dalamud.Game.ClientState.Objects.Types.ICharacter)?.CurrentHp ?? 0;
+    public float GetTargetMaxHP() => (Svc.Targets.Target as Dalamud.Game.ClientState.Objects.Types.ICharacter)?.MaxHp ?? 0;
     public float GetTargetHPP() => GetTargetHP() / GetTargetMaxHP() * 100;
     public float GetTargetRotation() => (float)(Svc.Targets.Target?.Rotation * (180 / Math.PI) ?? 0);
     public byte? GetTargetObjectKind() => (byte?)Svc.Targets.Target?.ObjectKind;
@@ -55,7 +51,7 @@ internal class EntityStateCommands
     public unsafe uint GetTargetFateID() => Svc.Targets.Target != null ? Svc.Targets.Target.Struct()->FateId : 0;
     public unsafe bool IsTargetMounted()
     {
-        var target = Service.TargetManager.Target;
+        var target = Svc.Targets.Target;
         if (target == null)
             return false;
 
@@ -63,10 +59,10 @@ internal class EntityStateCommands
             return false;
 
         var targetGameObject = target.Struct();
-        if (targetGameObject->ObjectIndex + 1 > Service.ObjectTable.Length)
+        if (targetGameObject->ObjectIndex + 1 > Svc.Objects.Length)
             return false;
 
-        var mountObject = Service.ObjectTable[targetGameObject->ObjectIndex + 1];
+        var mountObject = Svc.Objects[targetGameObject->ObjectIndex + 1];
         if (mountObject == null || mountObject.ObjectKind != ObjectKind.MountType)
             return false;
         return true;
@@ -74,6 +70,7 @@ internal class EntityStateCommands
     public unsafe bool IsTargetInCombat() => ((Character*)Svc.Targets.Target?.Address!)->InCombat;
     public byte GetTargetHuntRank() => (byte)(Svc.Targets.Target != null ? Svc.Data.GetExcelSheet<NotoriousMonster>()?.FirstOrDefault(x => x.BNpcBase.Value!.RowId == Svc.Targets.Target.DataId)?.Rank ?? 0 : 0);
     public float GetTargetHitboxRadius() => Svc.Targets.Target?.HitboxRadius ?? 0;
+    public bool HasTarget() => Svc.Targets.Target != null;
     #endregion
 
     #region Focus Target
@@ -82,10 +79,9 @@ internal class EntityStateCommands
     public float GetFocusTargetRawYPos() => Svc.Targets.FocusTarget?.Position.Y ?? 0;
     public float GetFocusTargetRawZPos() => Svc.Targets.FocusTarget?.Position.Z ?? 0;
     public unsafe bool IsFocusTargetCasting() => ((Character*)Svc.Targets.FocusTarget?.Address!)->IsCasting;
-    public unsafe uint GetFocusTargetActionID() => ((Character*)Svc.Targets.FocusTarget?.Address!)->GetCastInfo()->ActionID;
-    public unsafe uint GetFocusTargetUsedActionID() => ((Character*)Svc.Targets.FocusTarget?.Address!)->GetCastInfo()->UsedActionId;
-    public float GetFocusTargetHP() => (Svc.Targets.FocusTarget as Dalamud.Game.ClientState.Objects.Types.Character)?.CurrentHp ?? 0;
-    public float GetFocusTargetMaxHP() => (Svc.Targets.FocusTarget as Dalamud.Game.ClientState.Objects.Types.Character)?.MaxHp ?? 0;
+    public unsafe uint GetFocusTargetActionID() => ((Character*)Svc.Targets.FocusTarget?.Address!)->GetCastInfo()->ActionId;
+    public float GetFocusTargetHP() => (Svc.Targets.FocusTarget as Dalamud.Game.ClientState.Objects.Types.ICharacter)?.CurrentHp ?? 0;
+    public float GetFocusTargetMaxHP() => (Svc.Targets.FocusTarget as Dalamud.Game.ClientState.Objects.Types.ICharacter)?.MaxHp ?? 0;
     public float GetFocusTargetHPP() => GetFocusTargetHP() / GetFocusTargetMaxHP() * 100;
     public float GetFocusTargetRotation() => (float)(Svc.Targets.FocusTarget?.Rotation * (180 / Math.PI) ?? 0);
     public void ClearFocusTarget() => Svc.Targets.FocusTarget = null;
@@ -100,10 +96,9 @@ internal class EntityStateCommands
     public float GetObjectRawZPos(string name) => GetGameObjectFromName(name)?.Position.Z ?? 0;
     public float GetDistanceToObject(string name) => Vector3.Distance(Svc.ClientState.LocalPlayer?.Position ?? Vector3.Zero, Svc.Objects.OrderBy(DistanceToObject).FirstOrDefault(x => x.Name.TextValue.Equals(name, StringComparison.InvariantCultureIgnoreCase))?.Position ?? Vector3.Zero);
     public unsafe bool IsObjectCasting(string name) => ((Character*)GetGameObjectFromName(name)?.Address!)->IsCasting;
-    public unsafe uint GetObjectActionID(string name) => ((Character*)GetGameObjectFromName(name)?.Address!)->GetCastInfo()->ActionID;
-    public unsafe uint GetObjectUsedActionID(string name) => ((Character*)GetGameObjectFromName(name)?.Address!)->GetCastInfo()->UsedActionId;
-    public float GetObjectHP(string name) => (GetGameObjectFromName(name) as Dalamud.Game.ClientState.Objects.Types.Character)?.CurrentHp ?? 0;
-    public float GetObjectMaxHP(string name) => (GetGameObjectFromName(name) as Dalamud.Game.ClientState.Objects.Types.Character)?.MaxHp ?? 0;
+    public unsafe uint GetObjectActionID(string name) => ((Character*)GetGameObjectFromName(name)?.Address!)->GetCastInfo()->ActionId;
+    public float GetObjectHP(string name) => (GetGameObjectFromName(name) as Dalamud.Game.ClientState.Objects.Types.ICharacter)?.CurrentHp ?? 0;
+    public float GetObjectMaxHP(string name) => (GetGameObjectFromName(name) as Dalamud.Game.ClientState.Objects.Types.ICharacter)?.MaxHp ?? 0;
     public float GetObjectHPP(string name) => GetObjectHP(name) / GetObjectMaxHP(name) * 100;
     public float GetObjectRotation(string name) => (float)(GetGameObjectFromName(name)?.Rotation * (180 / Math.PI) ?? 0);
     public unsafe bool ObjectHasStatus(string name, uint statusID) => ((Character*)GetGameObjectFromName(name)?.Address!)->GetStatusManager()->HasStatus(statusID);
@@ -119,10 +114,10 @@ internal class EntityStateCommands
             return false;
 
         var targetGameObject = target.Struct();
-        if (targetGameObject->ObjectIndex + 1 > Service.ObjectTable.Length)
+        if (targetGameObject->ObjectIndex + 1 > Svc.Objects.Length)
             return false;
 
-        var mountObject = Service.ObjectTable[targetGameObject->ObjectIndex + 1];
+        var mountObject = Svc.Objects[targetGameObject->ObjectIndex + 1];
         if (mountObject == null || mountObject.ObjectKind != ObjectKind.MountType)
             return false;
         return true;
@@ -140,8 +135,7 @@ internal class EntityStateCommands
     public float GetPartyMemberRawZPos(int index) => Svc.Party[index]?.Position.Z ?? 0;
     public float GetDistanceToPartyMember(int index) => Vector3.Distance(Svc.ClientState.LocalPlayer?.Position ?? Vector3.Zero, Svc.Party[index]?.Position ?? Vector3.Zero);
     public unsafe bool IsPartyMemberCasting(int index) => ((Character*)Svc.Party[index]?.Address!)->IsCasting;
-    public unsafe uint GetPartyMemberActionID(int index) => ((Character*)Svc.Party[index]?.Address!)->GetCastInfo()->ActionID;
-    public unsafe uint GetPartyMemberUsedActionID(int index) => ((Character*)Svc.Party[index]?.Address!)->GetCastInfo()->UsedActionId;
+    public unsafe uint GetPartyMemberActionID(int index) => ((Character*)Svc.Party[index]?.Address!)->GetCastInfo()->ActionId;
     public float GetPartyMemberHP(int index) => Svc.Party[index]?.CurrentHP ?? 0;
     public float GetPartyMemberMaxHP(int index) => Svc.Party[index]?.MaxHP ?? 0;
     public float GetPartyMemberHPP(int index) => GetPartyMemberHP(index) / GetPartyMemberMaxHP(index) * 100;
@@ -157,10 +151,10 @@ internal class EntityStateCommands
             return false;
 
         var targetGameObject = target.Struct();
-        if (targetGameObject->ObjectIndex + 1 > Service.ObjectTable.Length)
+        if (targetGameObject->ObjectIndex + 1 > Svc.Objects.Length)
             return false;
 
-        var mountObject = Service.ObjectTable[targetGameObject->ObjectIndex + 1];
+        var mountObject = Svc.Objects[targetGameObject->ObjectIndex + 1];
         if (mountObject == null || mountObject.ObjectKind != ObjectKind.MountType)
             return false;
         return true;
@@ -172,6 +166,6 @@ internal class EntityStateCommands
     public unsafe float GetBuddyTimeRemaining() => UIState.Instance()->Buddy.CompanionInfo.TimeLeft;
     #endregion
 
-    private float DistanceToObject(Dalamud.Game.ClientState.Objects.Types.GameObject o) => Vector3.DistanceSquared(o.Position, Svc.ClientState.LocalPlayer?.Position ?? Vector3.Zero);
-    private Dalamud.Game.ClientState.Objects.Types.GameObject? GetGameObjectFromName(string name) => Svc.Objects.OrderBy(DistanceToObject).FirstOrDefault(x => x.Name.TextValue.Equals(name, StringComparison.InvariantCultureIgnoreCase));
+    private float DistanceToObject(Dalamud.Game.ClientState.Objects.Types.IGameObject o) => Vector3.DistanceSquared(o.Position, Svc.ClientState.LocalPlayer?.Position ?? Vector3.Zero);
+    private Dalamud.Game.ClientState.Objects.Types.IGameObject? GetGameObjectFromName(string name) => Svc.Objects.OrderBy(DistanceToObject).FirstOrDefault(x => x.Name.TextValue.Equals(name, StringComparison.InvariantCultureIgnoreCase));
 }

@@ -1,108 +1,98 @@
-using ClickLib;
-using Dalamud.Game.Command;
-using Dalamud.Interface.Windowing;
+using AutoRetainerAPI;
 using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
 using ECommons;
-using ECommons.DalamudServices;
+using ECommons.SimpleGui;
 using SomethingNeedDoing.Interface;
 using SomethingNeedDoing.Managers;
+using SomethingNeedDoing.Misc;
 using SomethingNeedDoing.Misc.Commands;
-using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Linq;
-using System.Windows.Forms;
 
 namespace SomethingNeedDoing;
 
-/// <summary>
-/// Main plugin implementation.
-/// </summary>
 public sealed class SomethingNeedDoingPlugin : IDalamudPlugin
 {
+    public static string Name => "Something Need Doing (Expanded Edition)";
+    public static string Prefix => "SND";
     private const string Command = "/somethingneeddoing";
-    private static string[] Aliases => new string[] { "/pcraft", "/snd" };
-    private readonly List<string> registeredCommands = [];
+    private static string[] Aliases => ["/pcraft", "/snd"];
 
-    private readonly WindowSystem windowSystem;
-    private readonly MacroWindow macroWindow;
-    private readonly HelpWindow helpWindow;
+    private readonly AutoRetainerApi _autoRetainerApi;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SomethingNeedDoingPlugin"/> class.
-    /// </summary>
-    /// <param name="pluginInterface">Dalamud plugin interface.</param>
-    public SomethingNeedDoingPlugin(DalamudPluginInterface pluginInterface)
+    public SomethingNeedDoingPlugin(IDalamudPluginInterface pluginInterface)
     {
         pluginInterface.Create<Service>();
-
-        Click.Initialize();
 
         Service.Plugin = this;
         Service.Configuration = SomethingNeedDoingConfiguration.Load(pluginInterface.ConfigDirectory);
 
-        ECommonsMain.Init(pluginInterface, this, Module.ObjectFunctions);
+        ECommonsMain.Init(pluginInterface, this, Module.ObjectFunctions, Module.DalamudReflector);
 
         Service.ChatManager = new ChatManager();
         Service.GameEventManager = new GameEventManager();
         Service.MacroManager = new MacroManager();
 
-        this.macroWindow = new();
-        this.helpWindow = new();
-        this.windowSystem = new("SomethingNeedDoing");
-        this.windowSystem.AddWindow(this.macroWindow);
-        this.windowSystem.AddWindow(this.helpWindow);
+        EzConfigGui.Init(new MacroWindow());
+        EzConfigGui.WindowSystem.AddWindow(new HelpWindow());
+        EzConfigGui.WindowSystem.AddWindow(new ExcelWindow());
+        MacroWindow.Setup();
 
-        Service.Interface.UiBuilder.Draw += this.windowSystem.Draw;
-        Service.Interface.UiBuilder.OpenConfigUi += this.OnOpenConfigUi;
-        Service.CommandManager.AddHandler(Command, new CommandInfo(this.OnChatCommand)
+        EzCmd.Add(Command, OnChatCommand, "Open a window to edit various settings.");
+        Aliases.ToList().ForEach(a => EzCmd.Add(a, OnChatCommand, $"{Command} Alias"));
+
+        _ = new Watcher();
+        _autoRetainerApi = new();
+
+        _autoRetainerApi.OnCharacterPostprocessStep += CheckCharacterPostProcess;
+        _autoRetainerApi.OnCharacterReadyToPostProcess += DoCharacterPostProcess;
+        Svc.Framework.Update += CheckForMacroCompletion;
+    }
+
+    private void CheckCharacterPostProcess()
+    {
+        if (Service.Configuration.ARCharacterPostProcessExcludedCharacters.Any(x => x == Svc.ClientState.LocalContentId))
+            Svc.Log.Info("Skipping post process macro for current character.");
+        else
+            _autoRetainerApi.RequestCharacterPostprocess();
+    }
+
+    private bool RunningPostProcess;
+    private void DoCharacterPostProcess()
+    {
+        if (Service.Configuration.ARCharacterPostProcessMacro != null)
         {
-            HelpMessage = "Open a window to edit various settings.",
-            ShowInHelp = true,
-        });
-        this.registeredCommands.Add(Command);
-        foreach (var a in Aliases)
+            RunningPostProcess = true;
+            Service.MacroManager.EnqueueMacro(Service.Configuration.ARCharacterPostProcessMacro);
+        }
+        else
         {
-            if (!Service.CommandManager.Commands.ContainsKey(a))
-            {
-                Service.CommandManager.AddHandler(a, new CommandInfo(this.OnChatCommand)
-                {
-                    HelpMessage = $"{Command} Alias",
-                    ShowInHelp = true
-                });
-                this.registeredCommands.Add(a);
-            }
+            RunningPostProcess = false;
+            _autoRetainerApi.FinishCharacterPostProcess();
         }
     }
 
-    /// <inheritdoc/>
-    public string Name => "Something Need Doing (Expanded Edition)";
+    private void CheckForMacroCompletion(IFramework framework)
+    {
+        if (!RunningPostProcess) return;
+        if (Service.MacroManager.State != LoopState.Running)
+        {
+            RunningPostProcess = false;
+            _autoRetainerApi.FinishCharacterPostProcess();
+        }
+    }
 
-    /// <inheritdoc/>
     public void Dispose()
     {
-        foreach (var c in this.registeredCommands)
-        {
-            Service.CommandManager.RemoveHandler(c);
-        }
-        this.registeredCommands.Clear();
-        Service.Interface.UiBuilder.OpenConfigUi -= this.OnOpenConfigUi;
-        Service.Interface.UiBuilder.Draw -= this.windowSystem.Draw;
-
-        this.windowSystem?.RemoveAllWindows();
+        _autoRetainerApi.OnCharacterPostprocessStep -= CheckCharacterPostProcess;
+        _autoRetainerApi.OnCharacterReadyToPostProcess -= DoCharacterPostProcess;
+        Svc.Framework.Update -= CheckForMacroCompletion;
 
         Service.MacroManager?.Dispose();
         Service.GameEventManager?.Dispose();
         Service.ChatManager?.Dispose();
         IpcCommands.Instance?.Dispose();
+        ECommonsMain.Dispose();
     }
-
-    /// <summary>
-    /// Open the help menu.
-    /// </summary>
-    internal void OpenHelpWindow() => this.helpWindow.IsOpen = true;
-
-    private void OnOpenConfigUi() => this.macroWindow.Toggle();
 
     private void OnChatCommand(string command, string arguments)
     {
@@ -110,7 +100,7 @@ public sealed class SomethingNeedDoingPlugin : IDalamudPlugin
 
         if (arguments == string.Empty)
         {
-            this.macroWindow.Toggle();
+            EzConfigGui.Window.IsOpen ^= true;
             return;
         }
         else if (arguments.StartsWith("run "))
@@ -224,7 +214,12 @@ public sealed class SomethingNeedDoingPlugin : IDalamudPlugin
         }
         else if (arguments == "help")
         {
-            this.OpenHelpWindow();
+            EzConfigGui.WindowSystem.Windows.FirstOrDefault(w => w.WindowName == HelpWindow.WindowName)!.IsOpen ^= true;
+            return;
+        }
+        else if (arguments == "excel")
+        {
+            EzConfigGui.WindowSystem.Windows.FirstOrDefault(w => w.WindowName == ExcelWindow.WindowName)!.IsOpen ^= true;
             return;
         }
         else if (arguments.StartsWith("cfg"))

@@ -16,6 +16,14 @@ public interface INode
     public string Name { get; set; }
 }
 
+public enum Language
+{
+    Native,
+    CSharp,
+    Lua,
+    Python,
+}
+
 /// <summary>
 /// Macro node type.
 /// </summary>
@@ -43,6 +51,7 @@ public class MacroNode : INode
     /// Gets or sets a value indicating whether the macro is a Lua script.
     /// </summary>
     public bool IsLua { get; set; } = false;
+    public Language Language { get; set; } = Language.Native;
 }
 
 /// <summary>
@@ -80,13 +89,13 @@ public class ConcreteNodeConverter : JsonConverter
         var jObject = JObject.Load(reader);
         var jType = jObject["$type"]?.Value<string>();
 
-        if (jType == this.SimpleName(typeof(MacroNode)))
+        if (jType == SimpleName(typeof(MacroNode)))
         {
             var obj = new MacroNode();
             serializer.Populate(jObject.CreateReader(), obj);
             return obj;
         }
-        else if (jType == this.SimpleName(typeof(FolderNode)))
+        else if (jType == SimpleName(typeof(FolderNode)))
         {
             var obj = new FolderNode();
             serializer.Populate(jObject.CreateReader(), obj);
